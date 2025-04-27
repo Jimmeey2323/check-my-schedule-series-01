@@ -138,9 +138,14 @@ function extractClassesFromContent(content: string): { time: string; className: 
   const classTrainers: { className: string; trainer: string }[] = [];
   
   while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
+    let trainerName = classTrainerMatch[2].trim();
+    if (trainerName === "Nishant") {
+      trainerName = "Nishanth"; // Convert Nishant to Nishanth
+    }
+
     classTrainers.push({
       className: matchClassName(classTrainerMatch[1].trim()),
-      trainer: classTrainerMatch[2].trim()
+      trainer: trainerName
     });
   }
   
@@ -156,7 +161,6 @@ function extractClassesFromContent(content: string): { time: string; className: 
   
   return classes;
 }
-
 // Main parsing function for PDF text
 export function parseScheduleFromPdfText(fullText: string, location: string): PdfClassData[] {
   const schedule: PdfClassData[] = [];
