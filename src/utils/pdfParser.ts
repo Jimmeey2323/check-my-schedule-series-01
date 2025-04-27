@@ -108,13 +108,19 @@ async function ocrPage(page: any): Promise<string> {
   
   await page.render({ canvasContext: context, viewport: viewport }).promise;
   
+  // Fix the Tesseract.js configuration issue by using proper parameters
   const { data: { text } } = await Tesseract.recognize(
     canvas, 
     "eng", 
     { 
       logger: m => {},
-      tessedit_ocr_engine_mode: Tesseract.OEM.DEFAULT,
-      tessedit_pageseg_mode: Tesseract.PSM.AUTO 
+      // Use proper Tesseract.js configuration parameters
+      tesseract: {
+        dataPath: 'https://unpkg.com/tesseract.js-data@2.0.0/eng',
+        engineMode: Tesseract.EngineMode.TESSERACT_ONLY,
+        workerBlobURL: false,
+        gzip: false,
+      }
     }
   );
   
