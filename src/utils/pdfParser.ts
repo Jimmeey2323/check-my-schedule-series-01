@@ -119,99 +119,80 @@ async function ocrPage(page: any): Promise<string> {
   return text;
 }
 
-// Parse schedule data from extracted PDF text
+// Helper function to extract classes from content
+function extractClassesFromContent(content: string): { time: string; className: string; trainer: string }[] {
+  const classes: { time: string; className: string; trainer: string }[] = [];
+  
+  // Match time values first
+  const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?(AM|PM))/gi;
+  const times: string[] = [];
+  let timeMatch;
+  
+  while ((timeMatch = timeRegex.exec(content)) !== null) {
+    times.push(normalizeTime(timeMatch[1]));
+  }
+  
+  // Match class-trainer pairs using refined regex
+  const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-]+?)\s*-\s*([A-Za-z]+)/g;
+  let classTrainerMatch;
+  const classTrainers: { className: string; trainer: string }[] = [];
+  
+  while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
+    classTrainers.push({
+      className: matchClassName(classTrainerMatch[1].trim()),
+      trainer: classTrainerMatch[2].trim()
+    });
+  }
+  
+  // Match times with class-trainer pairs
+  const count = Math.min(times.length, classTrainers.length);
+  for (let i = 0; i < count; i++) {
+    classes.push({
+      time: times[i],
+      className: classTrainers[i].className,
+      trainer: classTrainers[i].trainer
+    });
+  }
+  
+  return classes;
+}
+
+// Main parsing function for PDF text
 export function parseScheduleFromPdfText(fullText: string, location: string): PdfClassData[] {
+  const schedule: PdfClassData[] = [];
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   
-  // Find where the schedule starts (at the first day of week)
+  // Find schedule start
   const startIndex = fullText.search(/\bMonday\b/i);
   if (startIndex === -1) return [];
   
   const text = fullText.slice(startIndex);
   
-  // Split text into day blocks
-  const daySplitRegex = new RegExp(`\\b(${daysOfWeek.join("|")})\\b`, "gi");
-  let dayBlocks = [];
-  let lastIndex = 0;
-  let match;
+  // Split into day blocks
+  const dayBlocks = text.split(new RegExp(`\\b(?=${daysOfWeek.join("|")})\\b`, "i"));
   
-  while ((match = daySplitRegex.exec(text)) !== null) {
-    if (match.index !== lastIndex) {
-      dayBlocks.push({ day: text.substring(lastIndex, match.index).trim(), dayName: null });
-    }
-    dayBlocks.push({ day: null, dayName: match[0] });
-    lastIndex = match.index + match[0].length;
-  }
-  
-  if (lastIndex < text.length) {
-    dayBlocks.push({ day: text.substring(lastIndex).trim(), dayName: null });
-  }
-  
-  // Organize content by day
-  let daysData = [];
-  let currentDay = null;
-  
-  for (let i = 0; i < dayBlocks.length; i++) {
-    if (dayBlocks[i].dayName) {
-      currentDay = normalizeDay(dayBlocks[i].dayName);
-      daysData.push({ day: currentDay, content: "" });
-    } else if (currentDay) {
-      daysData[daysData.length - 1].content += dayBlocks[i].day + " ";
-    }
-  }
-  
-  // Extract schedule items from each day's content
-  const schedule: PdfClassData[] = [];
-  
-  daysData.forEach(({day, content}) => {
+  dayBlocks.forEach(block => {
+    // Extract day name from block
+    const dayMatch = block.match(new RegExp(`^(${daysOfWeek.join("|")})`, "i"));
+    if (!dayMatch) return;
+    
+    const day = normalizeDay(dayMatch[1]);
+    const content = block.slice(dayMatch[0].length).trim();
+    
     // Clean up content
     let cleanContent = content.replace(/\s+/g, " ").trim();
-    cleanContent = cleanContent.replace(/7 YEARS STRONG/gi, "");
-    cleanContent = cleanContent.replace(/BEAT THE TRAINER/gi, "");
-    cleanContent = cleanContent.replace(/SLOGAN.*?(\.|$)/gi, "");
-    cleanContent = cleanContent.trim();
+    cleanContent = cleanContent
+      .replace(/7 YEARS STRONG/gi, "")
+      .replace(/BEAT THE TRAINER/gi, "")
+      .replace(/SLOGAN.*?(\.|$)/gi, "")
+      .trim();
     
-    // Extract class and trainer pairs
-    const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-]+?)\s*-\s*([A-Za-z]+)/g;
-    let classTrainerMatches = [];
-    let m;
+    // Extract classes for this day
+    const classes = extractClassesFromContent(cleanContent);
     
-    while ((m = classTrainerRegex.exec(cleanContent)) !== null) {
-      classTrainerMatches.push({
-        classRaw: m[1].trim(),
-        trainerRaw: m[2].trim()
-      });
-    }
-    
-    // Extract times from content
-    let contentWithoutClasses = cleanContent;
-    
-    classTrainerMatches.forEach(({classRaw, trainerRaw}) => {
-      const escapedClass = classRaw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const escapedTrainer = trainerRaw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const pattern = new RegExp(`${escapedClass}\\s*-\\s*${escapedTrainer}`, "gi");
-      contentWithoutClasses = contentWithoutClasses.replace(pattern, "");
-    });
-    
-    contentWithoutClasses = contentWithoutClasses.trim();
-    
-    // Extract time values
-    const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?(AM|PM))/gi;
-    let timeMatches = [];
-    
-    while ((m = timeRegex.exec(contentWithoutClasses)) !== null) {
-      timeMatches.push(normalizeTime(m[1]));
-    }
-    
-    // Create schedule items by matching times with class-trainer pairs
-    const count = Math.min(classTrainerMatches.length, timeMatches.length);
-    
-    for (let i = 0; i < count; i++) {
-      const className = matchClassName(classTrainerMatches[i].classRaw);
-      const trainerName = classTrainerMatches[i].trainerRaw.replace(/\s{2,}/g, " ").trim();
-      const time = timeMatches[i];
-      
-      const uniqueKey = (day + time + className + trainerName + location)
+    // Add classes to schedule
+    classes.forEach(({ time, className, trainer }) => {
+      const uniqueKey = (day + time + className + trainer + location)
         .toLowerCase()
         .replace(/\s+/g, '');
       
@@ -219,11 +200,11 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         day,
         time,
         className,
-        trainer: trainerName,
+        trainer,
         location,
         uniqueKey
       });
-    }
+    });
   });
   
   return schedule;

@@ -3,14 +3,30 @@ import React, { useState, useEffect } from 'react';
 import { ClassData, PdfClassData, FilterState, ComparisonResult } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { FilterSection } from '../FilterSection';
 import { passesFilters } from '@/utils/filterUtils';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface ComparisonViewerProps {
   csvData: {[day: string]: ClassData[]} | null;
   pdfData: PdfClassData[] | null;
+}
+
+interface DrillDownData {
+  csvItem: ClassData | null;
+  pdfItem: PdfClassData | null;
+  isMatch: boolean;
+  unmatchReason: string;
+  discrepancyCols: string[];
 }
 
 export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
@@ -19,6 +35,8 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'match' | 'mismatch'>('all');
   const [unmatchReasonFilter, setUnmatchReasonFilter] = useState<string[]>([]);
   const [filteredResults, setFilteredResults] = useState<ComparisonResult[]>([]);
+  const [selectedDrillDown, setSelectedDrillDown] = useState<DrillDownData | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   
   useEffect(() => {
     if (csvData && pdfData) {
@@ -38,50 +56,19 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
       results = results.filter(result => !result.isMatch);
     }
     
-    // Apply unmatch reason filter if any selected
-    if (unmatchReasonFilter.length > 0) {
-      results = results.filter(result => 
-        unmatchReasonFilter.some(reason => result.unmatchReason.includes(reason))
-      );
-    }
-    
-    // Apply general filters
-    results = results.filter(result => {
-      const csvItem = result.csvItem;
-      const pdfItem = result.pdfItem;
-      
-      // If no CSV item, check PDF item against filters
-      if (!csvItem && pdfItem) {
-        return passesFilters(
-          { day: pdfItem.day, location: pdfItem.location, trainer: pdfItem.trainer, className: pdfItem.className },
-          filters
-        );
-      }
-      
-      // If no PDF item, check CSV item against filters
-      if (csvItem && !pdfItem) {
-        return passesFilters(
-          { day: csvItem.day, location: csvItem.location, trainer: csvItem.trainer1, className: csvItem.className },
-          filters
-        );
-      }
-      
-      // If both exist, check if either passes filters
-      if (csvItem && pdfItem) {
-        return passesFilters(
-          { day: csvItem.day, location: csvItem.location, trainer: csvItem.trainer1, className: csvItem.className },
-          filters
-        ) || passesFilters(
-          { day: pdfItem.day, location: pdfItem.location, trainer: pdfItem.trainer, className: pdfItem.className },
-          filters
-        );
-      }
-      
-      return false;
-    });
+    // Apply filters
+    results = results.filter(result => passesFilters(
+      { 
+        day: result.csvItem?.day || result.pdfItem?.day || '',
+        location: result.csvItem?.location || result.pdfItem?.location || '',
+        trainer: result.csvItem?.trainer1 || result.pdfItem?.trainer || '',
+        className: result.csvItem?.className || result.pdfItem?.className || ''
+      },
+      filters
+    ));
     
     setFilteredResults(results);
-  }, [comparisonResults, filters, statusFilter, unmatchReasonFilter]);
+  }, [comparisonResults, filters, statusFilter]);
   
   const compareData = (csvData: {[day: string]: ClassData[]}, pdfData: PdfClassData[]) => {
     // Flatten CSV data into array
@@ -90,96 +77,101 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
       csvClasses = csvClasses.concat(arr);
     });
     
-    // Create maps by uniqueKey for quick lookup
-    const csvMap = new Map<string, ClassData>();
-    csvClasses.forEach(item => {
-      csvMap.set(item.uniqueKey, item);
-    });
+    // Create sets for matching
+    const results: ComparisonResult[] = [];
+    const matchedPdfKeys = new Set<string>();
+    const matchedCsvKeys = new Set<string>();
     
-    const pdfMap = new Map<string, PdfClassData>();
-    pdfData.forEach(item => {
-      pdfMap.set(item.uniqueKey, item);
-    });
-    
-    // Create union of keys
-    const allKeys = new Set<string>([...csvMap.keys(), ...pdfMap.keys()]);
-    
-    // Build comparison results
-    const results: ComparisonResult[] = Array.from(allKeys).map(key => {
-      const csvItem = csvMap.get(key) || null;
-      const pdfItem = pdfMap.get(key) || null;
+    // First pass: Find exact matches and close matches (only trainer differs)
+    csvClasses.forEach(csvItem => {
+      let found = false;
       
-      let isMatch = false;
-      let unmatchReason = '';
-      let discrepancyCols: string[] = [];
-      
-      if (csvItem && pdfItem) {
-        // Compare relevant fields
+      pdfData.forEach(pdfItem => {
+        if (matchedPdfKeys.has(pdfItem.uniqueKey)) return;
+        
         const dayMatch = csvItem.day === pdfItem.day;
         const timeMatch = csvItem.time === pdfItem.time;
         const classMatch = csvItem.className === pdfItem.className;
         const trainerMatch = csvItem.trainer1 === pdfItem.trainer;
         
-        isMatch = dayMatch && timeMatch && classMatch && trainerMatch;
-        
-        if (!isMatch) {
-          if (!dayMatch) discrepancyCols.push('Day');
-          if (!timeMatch) discrepancyCols.push('Time');
-          if (!classMatch) discrepancyCols.push('Class Name');
+        // Check for match
+        if (dayMatch && timeMatch && classMatch) {
+          found = true;
+          matchedPdfKeys.add(pdfItem.uniqueKey);
+          matchedCsvKeys.add(csvItem.uniqueKey);
+          
+          const discrepancyCols = [];
           if (!trainerMatch) discrepancyCols.push('Trainer Name');
-          unmatchReason = 'Mismatch in ' + discrepancyCols.join(', ');
+          
+          results.push({
+            csvItem,
+            pdfItem,
+            isMatch: trainerMatch,
+            unmatchReason: trainerMatch ? '' : 'Trainer Name Mismatch',
+            discrepancyCols
+          });
+          return;
         }
-      } else if (csvItem && !pdfItem) {
-        unmatchReason = 'Missing in PDF';
-      } else if (!csvItem && pdfItem) {
-        unmatchReason = 'Missing in CSV';
-      }
+      });
       
-      return {
-        csvItem,
-        pdfItem,
-        isMatch,
-        unmatchReason,
-        discrepancyCols
-      };
+      // If no match found, add as CSV-only entry
+      if (!found) {
+        results.push({
+          csvItem,
+          pdfItem: null,
+          isMatch: false,
+          unmatchReason: 'Missing in PDF',
+          discrepancyCols: []
+        });
+      }
     });
     
-    // Sort by key for consistent order
+    // Add remaining unmatched PDF entries
+    pdfData.forEach(pdfItem => {
+      if (!matchedPdfKeys.has(pdfItem.uniqueKey)) {
+        results.push({
+          csvItem: null,
+          pdfItem,
+          isMatch: false,
+          unmatchReason: 'Missing in CSV',
+          discrepancyCols: []
+        });
+      }
+    });
+    
+    // Sort results by day and time
     results.sort((a, b) => {
-      const keyA = a.csvItem?.uniqueKey || a.pdfItem?.uniqueKey || '';
-      const keyB = b.csvItem?.uniqueKey || b.pdfItem?.uniqueKey || '';
-      return keyA.localeCompare(keyB);
+      const dayA = a.csvItem?.day || a.pdfItem?.day || '';
+      const dayB = b.csvItem?.day || b.pdfItem?.day || '';
+      if (dayA !== dayB) return dayA.localeCompare(dayB);
+      
+      const timeA = a.csvItem?.time || a.pdfItem?.time || '';
+      const timeB = b.csvItem?.time || b.pdfItem?.time || '';
+      return timeA.localeCompare(timeB);
     });
     
     setComparisonResults(results);
     
-    // Generate unmatch reason options for filtering
-    const reasons = new Set<string>();
-    results
-      .filter(r => !r.isMatch)
-      .forEach(r => {
-        if (r.unmatchReason) {
-          if (r.unmatchReason.startsWith('Mismatch in')) {
-            r.discrepancyCols.forEach(col => reasons.add(`Mismatch in ${col}`));
-          } else {
-            reasons.add(r.unmatchReason);
-          }
-        }
-      });
-    
-    // Show toast with comparison results
+    // Show comparison summary
     const matchCount = results.filter(r => r.isMatch).length;
     const mismatchCount = results.length - matchCount;
     
     toast({
       title: "Comparison Complete",
-      description: `Found ${matchCount} matches and ${mismatchCount} mismatches.`,
+      description: `Found ${matchCount} matches and ${mismatchCount} discrepancies.`,
       variant: mismatchCount > 0 ? "destructive" : "default",
     });
   };
   
-  const handleFilterChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
+  const handleRowClick = (result: ComparisonResult) => {
+    setSelectedDrillDown({
+      csvItem: result.csvItem,
+      pdfItem: result.pdfItem,
+      isMatch: result.isMatch,
+      unmatchReason: result.unmatchReason,
+      discrepancyCols: result.discrepancyCols
+    });
+    setIsSheetOpen(true);
   };
   
   if (!csvData || !pdfData) {
@@ -208,7 +200,7 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
   }
   
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="mb-4 space-y-4">
         <div className="flex flex-wrap gap-2">
           <Button
@@ -248,19 +240,18 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
         <FilterSection 
           data={csvData}
           filters={filters}
-          onFilterChange={handleFilterChange}
+          onFilterChange={setFilters}
           isComparisonView
         />
       </div>
       
       <Card className="flex-grow overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto h-full">
+          <ScrollArea className="h-[calc(100vh-300px)]">
             <Table>
               <TableHeader className="sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="bg-blue-600 text-white">Status</TableHead>
-                  <TableHead className="bg-blue-600 text-white">Issue</TableHead>
                   <TableHead className="bg-blue-600 text-white">Day</TableHead>
                   <TableHead className="bg-blue-600 text-white">Time</TableHead>
                   <TableHead className="bg-blue-600 text-white">Location</TableHead>
@@ -272,35 +263,25 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
               <TableBody>
                 {filteredResults.length > 0 ? (
                   filteredResults.map((result, index) => (
-                    <TableRow key={index} className={result.isMatch ? "hover:bg-green-50" : "hover:bg-red-50"}>
+                    <TableRow 
+                      key={index} 
+                      className={result.isMatch ? "hover:bg-green-50 cursor-pointer" : "hover:bg-red-50 cursor-pointer"}
+                      onClick={() => handleRowClick(result)}
+                    >
                       <TableCell 
                         className={result.isMatch 
                           ? "bg-green-100 text-green-800 font-semibold text-center" 
                           : "bg-red-100 text-red-800 font-semibold text-center"}
                       >
-                        {result.isMatch ? 'Match' : 'Mismatch'}
+                        {result.isMatch ? 'Match' : result.unmatchReason}
                       </TableCell>
-                      <TableCell>{result.unmatchReason}</TableCell>
+                      <TableCell>{result.csvItem?.day || result.pdfItem?.day || '-'}</TableCell>
+                      <TableCell>{result.csvItem?.time || result.pdfItem?.time || '-'}</TableCell>
                       <TableCell>
-                        {result.csvItem?.day || ''} 
-                        {result.pdfItem?.day && result.csvItem?.day !== result.pdfItem?.day && (
-                          <span className="text-red-500 block">PDF: {result.pdfItem.day}</span>
-                        )}
+                        {result.csvItem?.location || result.pdfItem?.location || '-'}
                       </TableCell>
                       <TableCell>
-                        {result.csvItem?.time || ''}
-                        {result.pdfItem?.time && result.csvItem?.time !== result.pdfItem?.time && (
-                          <span className="text-red-500 block">PDF: {result.pdfItem.time}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {result.csvItem?.location || result.pdfItem?.location || ''}
-                      </TableCell>
-                      <TableCell>
-                        {result.csvItem?.className || ''}
-                        {result.pdfItem?.className && result.csvItem?.className !== result.pdfItem?.className && (
-                          <span className="text-red-500 block">PDF: {result.pdfItem.className}</span>
-                        )}
+                        {result.csvItem?.className || result.pdfItem?.className || '-'}
                       </TableCell>
                       <TableCell>{result.csvItem?.trainer1 || '-'}</TableCell>
                       <TableCell>{result.pdfItem?.trainer || '-'}</TableCell>
@@ -308,16 +289,88 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       No results match your current filters
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </div>
+          </ScrollArea>
         </CardContent>
       </Card>
+      
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Class Details</SheetTitle>
+            <SheetDescription>
+              Detailed comparison of class information
+            </SheetDescription>
+          </SheetHeader>
+          
+          {selectedDrillDown && (
+            <div className="mt-6 space-y-6">
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">
+                  {selectedDrillDown.isMatch ? (
+                    <span className="text-green-600">Matching Class</span>
+                  ) : (
+                    <span className="text-red-600">Discrepancy Found</span>
+                  )}
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">CSV Data</h4>
+                    {selectedDrillDown.csvItem ? (
+                      <div className="space-y-1">
+                        <p><span className="font-medium">Day:</span> {selectedDrillDown.csvItem.day}</p>
+                        <p><span className="font-medium">Time:</span> {selectedDrillDown.csvItem.time}</p>
+                        <p><span className="font-medium">Class:</span> {selectedDrillDown.csvItem.className}</p>
+                        <p><span className="font-medium">Trainer:</span> {selectedDrillDown.csvItem.trainer1}</p>
+                        <p><span className="font-medium">Location:</span> {selectedDrillDown.csvItem.location}</p>
+                        {selectedDrillDown.csvItem.notes && (
+                          <p><span className="font-medium">Notes:</span> {selectedDrillDown.csvItem.notes}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">No CSV data available</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium">PDF Data</h4>
+                    {selectedDrillDown.pdfItem ? (
+                      <div className="space-y-1">
+                        <p><span className="font-medium">Day:</span> {selectedDrillDown.pdfItem.day}</p>
+                        <p><span className="font-medium">Time:</span> {selectedDrillDown.pdfItem.time}</p>
+                        <p><span className="font-medium">Class:</span> {selectedDrillDown.pdfItem.className}</p>
+                        <p><span className="font-medium">Trainer:</span> {selectedDrillDown.pdfItem.trainer}</p>
+                        <p><span className="font-medium">Location:</span> {selectedDrillDown.pdfItem.location}</p>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">No PDF data available</p>
+                    )}
+                  </div>
+                </div>
+                
+                {!selectedDrillDown.isMatch && (
+                  <div className="mt-4 p-4 bg-red-50 rounded-md">
+                    <h4 className="font-medium text-red-800">Discrepancy Details</h4>
+                    <p className="text-red-700">{selectedDrillDown.unmatchReason}</p>
+                    {selectedDrillDown.discrepancyCols.length > 0 && (
+                      <p className="text-red-700 mt-2">
+                        Fields with differences: {selectedDrillDown.discrepancyCols.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
