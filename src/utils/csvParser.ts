@@ -60,38 +60,44 @@ export function normalizeClassName(raw: string): string {
 export function normalizeTrainerName(raw: string): string {
   if (!raw) return '';
   const val = raw.trim();
-  
+
+  // Specific replacements for trainer names
+  if (val.toLowerCase() === 'mriga') return 'Mrigakshi';
+  if (val.toLowerCase() === 'nishant') return 'Nishanth';
+
   for (const name of allowedNames) {
     if (val.toLowerCase() === name.toLowerCase()) return name;
   }
-  
+
   for (const name of allowedNames) {
     if (val.toLowerCase().includes(name.toLowerCase())) return name;
   }
-  
+
   return val;
 }
-
 // Helper function to parse time string to Date
 export function parseTimeToDate(timeStr: string): Date | null {
   if (!timeStr) return null;
-  
+
   const today = new Date();
   let time = timeStr.trim().toUpperCase();
-  
+
+  // Replace fullstops with colons in time strings
+  time = time.replace(/\./g, ':');
+
   // Try to match time in format "HH:MM AM/PM"
   const ampmMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
   if (ampmMatch) {
     let hour = parseInt(ampmMatch[1], 10);
     const minute = parseInt(ampmMatch[2], 10);
     const ampm = ampmMatch[3].toUpperCase();
-    
+
     if (ampm === 'PM' && hour !== 12) hour += 12;
     if (ampm === 'AM' && hour === 12) hour = 0;
-    
+
     return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
   }
-  
+
   // Try to match time in format "HH:MM"
   const hmMatch = time.match(/^(\d{1,2}):(\d{2})$/);
   if (hmMatch) {
@@ -99,17 +105,16 @@ export function parseTimeToDate(timeStr: string): Date | null {
     const minute = parseInt(hmMatch[2], 10);
     return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
   }
-  
+
   // Try to match time in format "HH"
   const hMatch = time.match(/^(\d{1,2})$/);
   if (hMatch) {
     const hour = parseInt(hMatch[1], 10);
     return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, 0);
   }
-  
+
   return null;
 }
-
 // Helper function to format Date to time string
 export function formatTime(date: Date | null): string {
   if (!date) return '';
