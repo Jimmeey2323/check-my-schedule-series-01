@@ -1,4 +1,3 @@
-
 import Papa from 'papaparse';
 import { ClassData } from '@/types/schedule';
 
@@ -150,13 +149,21 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
           const trainer1Cols = [3, 9, 15, 20, 25, 30, 36];
           const coverCols = [6, 12, 17, 22, 27, 32, 38];
           
-          // Find time column index
-          const timeColIndex = headerRow.findIndex(
-            (h) => h && h.toLowerCase() === 'time'
-          );
+          // Improved time column detection - check with case insensitivity
+          let timeColIndex = -1;
+          for (let i = 0; i < headerRow.length; i++) {
+            const header = headerRow[i]?.trim()?.toLowerCase() || '';
+            if (header === 'time') {
+              timeColIndex = i;
+              break;
+            }
+          }
+          
+          console.log("Header row:", headerRow);
+          console.log("Time column index found:", timeColIndex);
           
           if (timeColIndex === -1) {
-            throw new Error('Time column header not found in row 4');
+            throw new Error('Time column header not found in row 4. Available headers: ' + headerRow.filter(Boolean).join(', '));
           }
           
           // Extract classes from rows

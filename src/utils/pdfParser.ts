@@ -1,11 +1,10 @@
-
 import { PdfClassData } from '@/types/schedule';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
 import Fuse from 'fuse.js';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.7.107/build/pdf.worker.min.js';
+// Set up PDF.js worker - update to match the installed version
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -108,19 +107,12 @@ async function ocrPage(page: any): Promise<string> {
   
   await page.render({ canvasContext: context, viewport: viewport }).promise;
   
-  // Fix the Tesseract.js configuration issue by using proper parameters
+  // Fix Tesseract configuration
   const { data: { text } } = await Tesseract.recognize(
     canvas, 
     "eng", 
     { 
-      logger: m => {},
-      // Use proper Tesseract.js configuration parameters
-      tesseract: {
-        dataPath: 'https://unpkg.com/tesseract.js-data@2.0.0/eng',
-        engineMode: Tesseract.EngineMode.TESSERACT_ONLY,
-        workerBlobURL: false,
-        gzip: false,
-      }
+      logger: m => {}
     }
   );
   

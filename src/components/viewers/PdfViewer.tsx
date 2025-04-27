@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PdfClassData } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { FileDropzone } from '../FileDropzone';
 import { extractTextFromPDF, parseScheduleFromPdfText } from '@/utils/pdfParser';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface PdfViewerProps {
   savedData: PdfClassData[] | null;
@@ -16,6 +17,15 @@ interface PdfViewerProps {
 export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdfLibVersion, setPdfLibVersion] = useState<string>('');
+  
+  useEffect(() => {
+    // Display PDF.js version information on component mount
+    if (pdfjsLib.version) {
+      setPdfLibVersion(`PDF.js v${pdfjsLib.version}`);
+      console.log(`Using PDF.js version: ${pdfjsLib.version}`);
+    }
+  }, []);
   
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
@@ -60,14 +70,19 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {!savedData ? (
-        <FileDropzone 
-          onFileUpload={handleFileUpload}
-          accept="application/pdf"
-          isLoading={isLoading}
-          icon="file-pdf"
-          iconColor="text-red-500"
-          label="Drag & Drop your PDF file here"
-        />
+        <>
+          {pdfLibVersion && (
+            <div className="text-xs text-gray-500 mb-2 text-right">{pdfLibVersion}</div>
+          )}
+          <FileDropzone 
+            onFileUpload={handleFileUpload}
+            accept="application/pdf"
+            isLoading={isLoading}
+            icon="file-pdf"
+            iconColor="text-red-500"
+            label="Drag & Drop your PDF file here"
+          />
+        </>
       ) : (
         <>
           <div className="flex justify-between mb-4">
@@ -87,6 +102,10 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
             >
               Upload New PDF
             </Button>
+            
+            {pdfLibVersion && (
+              <div className="text-xs text-gray-500 self-center">{pdfLibVersion}</div>
+            )}
           </div>
 
           <Card className="flex-grow overflow-hidden">
