@@ -4,6 +4,7 @@ import { TabGroup } from './TabGroup';
 import { CsvViewer } from './viewers/CsvViewer';
 import { PdfViewer } from './viewers/PdfViewer';
 import { ComparisonViewer } from './viewers/ComparisonViewer';
+import { SideBySideViewer } from './viewers/SideBySideViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 
@@ -43,7 +44,8 @@ export function ClassScheduleViewer() {
   const tabs = [
     { id: 'csv', label: 'CSV Schedule' },
     { id: 'pdf', label: 'PDF Schedule' },
-    { id: 'compare', label: 'Comparison' }
+    { id: 'compare', label: 'Comparison' },
+    { id: 'side-by-side', label: 'Side by Side' }
   ];
 
   const handleCsvDataUpdate = (data: {[day: string]: ClassData[]}) => {
@@ -83,6 +85,13 @@ export function ClassScheduleViewer() {
         
         {activeTab === 'compare' && (
           <ComparisonViewer 
+            csvData={csvData}
+            pdfData={pdfData}
+          />
+        )}
+
+        {activeTab === 'side-by-side' && (
+          <SideBySideViewer
             csvData={csvData}
             pdfData={pdfData}
           />

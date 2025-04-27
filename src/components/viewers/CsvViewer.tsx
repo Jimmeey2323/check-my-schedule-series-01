@@ -53,7 +53,21 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
+    // Store filters in localStorage for persistence across tabs
+    localStorage.setItem('csvFilters', JSON.stringify(newFilters));
   };
+  
+  // Load saved filters on component mount
+  React.useEffect(() => {
+    const savedFilters = localStorage.getItem('csvFilters');
+    if (savedFilters) {
+      try {
+        setFilters(JSON.parse(savedFilters));
+      } catch (e) {
+        console.error('Error parsing saved filters:', e);
+      }
+    }
+  }, []);
   
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -94,17 +108,19 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
             onViewOptionChange={setViewOption}
           />
 
-          {viewOption === 'byDay' ? (
-            <ScheduleTabs 
-              classesByDay={savedData} 
-              filters={filters}
-            />
-          ) : (
-            <FullWeekSchedule 
-              classesByDay={savedData}
-              filters={filters}
-            />
-          )}
+          <div className="flex-grow overflow-auto">
+            {viewOption === 'byDay' ? (
+              <ScheduleTabs 
+                classesByDay={savedData} 
+                filters={filters}
+              />
+            ) : (
+              <FullWeekSchedule 
+                classesByDay={savedData}
+                filters={filters}
+              />
+            )}
+          </div>
           
           <SummarySection 
             classesByDay={savedData}

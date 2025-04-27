@@ -38,6 +38,18 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
   const [selectedDrillDown, setSelectedDrillDown] = useState<DrillDownData | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   
+  // Load saved filters
+  useEffect(() => {
+    const savedFilters = localStorage.getItem('csvFilters');
+    if (savedFilters) {
+      try {
+        setFilters(JSON.parse(savedFilters));
+      } catch (e) {
+        console.error('Error parsing saved filters:', e);
+      }
+    }
+  }, []);
+  
   useEffect(() => {
     if (csvData && pdfData) {
       compareData(csvData, pdfData);
@@ -71,10 +83,22 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
   }, [comparisonResults, filters, statusFilter]);
   
   const compareData = (csvData: {[day: string]: ClassData[]}, pdfData: PdfClassData[]) => {
-    // Flatten CSV data into array
+    // Get only filtered CSV data (respect filters from CSV tab)
+    const savedFilters = localStorage.getItem('csvFilters');
+    const appliedFilters = savedFilters ? JSON.parse(savedFilters) : { day: [], location: [], trainer: [], className: [] };
+    
+    // Flatten CSV data into array, applying any saved filters
     let csvClasses: ClassData[] = [];
     Object.values(csvData).forEach(arr => {
-      csvClasses = csvClasses.concat(arr);
+      const filteredArr = arr.filter(item => 
+        passesFilters({
+          day: item.day,
+          location: item.location,
+          trainer: item.trainer1,
+          className: item.className
+        }, appliedFilters)
+      );
+      csvClasses = csvClasses.concat(filteredArr);
     });
     
     // Create sets for matching
@@ -82,7 +106,7 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
     const matchedPdfKeys = new Set<string>();
     const matchedCsvKeys = new Set<string>();
     
-    // First pass: Find exact matches and close matches (only trainer differs)
+    // First pass: Find matches based on day, time, and class name
     csvClasses.forEach(csvItem => {
       let found = false;
       
@@ -92,14 +116,14 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
         const dayMatch = csvItem.day === pdfItem.day;
         const timeMatch = csvItem.time === pdfItem.time;
         const classMatch = csvItem.className === pdfItem.className;
-        const trainerMatch = csvItem.trainer1 === pdfItem.trainer;
         
-        // Check for match
+        // Check for match - day, time, and class name must match
         if (dayMatch && timeMatch && classMatch) {
           found = true;
           matchedPdfKeys.add(pdfItem.uniqueKey);
           matchedCsvKeys.add(csvItem.uniqueKey);
           
+          const trainerMatch = csvItem.trainer1 === pdfItem.trainer;
           const discrepancyCols = [];
           if (!trainerMatch) discrepancyCols.push('Trainer Name');
           
@@ -246,7 +270,7 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
       </div>
       
       <Card className="flex-grow overflow-hidden">
-        <CardContent className="p-0">
+        <CardContent className="p-0 h-full">
           <ScrollArea className="h-[calc(100vh-300px)]">
             <Table>
               <TableHeader className="sticky top-0 z-10">

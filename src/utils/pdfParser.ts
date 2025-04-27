@@ -1,3 +1,4 @@
+
 import { PdfClassData } from '@/types/schedule';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
@@ -107,7 +108,6 @@ async function ocrPage(page: any): Promise<string> {
   
   await page.render({ canvasContext: context, viewport: viewport }).promise;
   
-  // Fix Tesseract configuration
   const { data: { text } } = await Tesseract.recognize(
     canvas, 
     "eng", 
@@ -123,7 +123,7 @@ async function ocrPage(page: any): Promise<string> {
 function extractClassesFromContent(content: string): { time: string; className: string; trainer: string }[] {
   const classes: { time: string; className: string; trainer: string }[] = [];
   
-  // Match time values first
+  // Match time values
   const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?(AM|PM))/gi;
   const times: string[] = [];
   let timeMatch;
@@ -187,8 +187,11 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
       .replace(/SLOGAN.*?(\.|$)/gi, "")
       .trim();
     
+    console.log(`Processing day: ${day}, content length: ${cleanContent.length}`);
+    
     // Extract classes for this day
     const classes = extractClassesFromContent(cleanContent);
+    console.log(`Found ${classes.length} classes for ${day}`);
     
     // Add classes to schedule
     classes.forEach(({ time, className, trainer }) => {

@@ -109,10 +109,10 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
           </div>
 
           <Card className="flex-grow overflow-hidden">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
+            <CardContent className="p-0 h-full overflow-auto">
+              <div>
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10">
                     <TableRow>
                       <TableHead>Day</TableHead>
                       <TableHead>Time</TableHead>
