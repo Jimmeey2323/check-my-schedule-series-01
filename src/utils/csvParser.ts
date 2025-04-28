@@ -62,8 +62,8 @@ export function normalizeTrainerName(raw: string): string {
   const val = raw.trim();
 
   // Specific replacements for trainer names
-  if (val.toLowerCase() === 'mriga') return 'Mrigakshi';
-  if (val.toLowerCase() === 'nishant') return 'Nishanth';
+  if (val.toLowerCase() === 'Mriga') return 'Mrigakshi';
+  if (val.toLowerCase() === 'Nishant') return 'Nishanth';
 
   for (const name of allowedNames) {
     if (val.toLowerCase() === name.toLowerCase()) return name;
