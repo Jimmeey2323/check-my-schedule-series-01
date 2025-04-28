@@ -59,22 +59,28 @@ export function normalizeClassName(raw: string): string {
 // Helper function to normalize trainer name
 export function normalizeTrainerName(raw: string): string {
   if (!raw) return '';
-  const val = raw.trim();
+  
+  // Trim and normalize the input string
+  const val = raw.trim().toLowerCase();
 
   // Specific replacements for trainer names
-  if (val.toLowerCase() === 'Mriga') return 'Mrigakshi';
-  if (val.toLowerCase() === 'Nishant') return 'Nishanth';
+  if (val === 'mriga') return 'Mrigakshi';
+  if (val === 'nishant') return 'Nishanth';
 
+  // Check for exact matches in the allowed names
   for (const name of allowedNames) {
-    if (val.toLowerCase() === name.toLowerCase()) return name;
+    if (val === name.toLowerCase()) return name;
   }
 
+  // Check for partial matches in the allowed names
   for (const name of allowedNames) {
-    if (val.toLowerCase().includes(name.toLowerCase())) return name;
+    if (val.includes(name.toLowerCase())) return name;
   }
 
-  return val;
+  // Return the original value if no matches are found
+  return raw.trim();
 }
+
 // Helper function to parse time string to Date
 export function parseTimeToDate(timeStr: string): Date | null {
   if (!timeStr) return null;
