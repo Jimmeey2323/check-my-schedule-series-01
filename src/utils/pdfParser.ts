@@ -93,30 +93,27 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   return fullText.trim();
 }
 
-// Use Tesseract.js for OCR on a PDF page
 async function ocrPage(page: any): Promise<string> {
-  const viewport = page.getViewport({ scale: 2 });
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  
-  if (!context) {
-    return "";
-  }
-  
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  
-  await page.render({ canvasContext: context, viewport: viewport }).promise;
-  
-  const { data: { text } } = await Tesseract.recognize(
-    canvas, 
-    "eng", 
-    { 
-      logger: m => {}
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) {
+        return "";
     }
-  );
-  
-  return text;
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+    const { data: { text } } = await Tesseract.recognize(
+        canvas,
+        "eng",
+        { logger: m => {} }
+    );
+
+    // Debug log for OCR
+    console.log(`OCR Output:`, text);
+
+    return text;
 }
 
 // Helper function to extract classes from content
@@ -176,12 +173,16 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
   const dayBlocks = text.split(new RegExp(`\\b(?=${daysOfWeek.join("|")})\\b`, "i"));
   
   dayBlocks.forEach(block => {
-    // Extract day name from block
     const dayMatch = block.match(new RegExp(`^(${daysOfWeek.join("|")})`, "i"));
     if (!dayMatch) return;
     
     const day = normalizeDay(dayMatch[1]);
     const content = block.slice(dayMatch[0].length).trim();
+
+    // Debug log for Saturday
+    if (day === "Saturday") {
+        console.log(`Saturday block content:`, content);
+    }
     
     // Clean up content
     let cleanContent = content.replace(/\s+/g, " ").trim();
