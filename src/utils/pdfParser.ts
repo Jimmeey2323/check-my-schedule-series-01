@@ -158,52 +158,52 @@ function extractClassesFromContent(content: string): { time: string; className: 
   
   return classes;
 }
-// Main parsing function for PDF text
 export function parseScheduleFromPdfText(fullText: string, location: string): PdfClassData[] {
   const schedule: PdfClassData[] = [];
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  
-  // Find schedule start
-  const startIndex = fullText.search(/\bMonday\b/i);
-  if (startIndex === -1) return [];
-  
+
+  // Find the first day in the OCR text
+  const firstDayMatch = fullText.match(new RegExp(`\\b(${daysOfWeek.join("|")})\\b`, "i"));
+  if (!firstDayMatch) {
+    console.warn("No valid day found in the OCR data.");
+    return [];
+  }
+
+  // Extract text starting from the first day
+  const startIndex = firstDayMatch.index || 0;
   const text = fullText.slice(startIndex);
-  
-  // Split into day blocks
+
+  // Split the text into blocks for each day
   const dayBlocks = text.split(new RegExp(`\\b(?=${daysOfWeek.join("|")})\\b`, "i"));
-  
+
   dayBlocks.forEach(block => {
     const dayMatch = block.match(new RegExp(`^(${daysOfWeek.join("|")})`, "i"));
     if (!dayMatch) return;
-    
+
     const day = normalizeDay(dayMatch[1]);
     const content = block.slice(dayMatch[0].length).trim();
 
-    // Debug log for Saturday
-    if (day === "Saturday") {
-        console.log(`Saturday block content:`, content);
-    }
-    
-    // Clean up content
+    // Debug log for each day
+    console.log(`Processing day: ${day}, content length: ${content.length}`);
+
+    // Clean up the content
     let cleanContent = content.replace(/\s+/g, " ").trim();
     cleanContent = cleanContent
       .replace(/7 YEARS STRONG/gi, "")
       .replace(/BEAT THE TRAINER/gi, "")
       .replace(/SLOGAN.*?(\.|$)/gi, "")
       .trim();
-    
-    console.log(`Processing day: ${day}, content length: ${cleanContent.length}`);
-    
-    // Extract classes for this day
+
+    // Extract classes for the day
     const classes = extractClassesFromContent(cleanContent);
     console.log(`Found ${classes.length} classes for ${day}`);
-    
-    // Add classes to schedule
+
+    // Add classes to the schedule
     classes.forEach(({ time, className, trainer }) => {
       const uniqueKey = (day + time + className + trainer + location)
         .toLowerCase()
-        .replace(/\s+/g, '');
-      
+        .replace(/\s+/g, "");
+
       schedule.push({
         day,
         time,
@@ -214,6 +214,6 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
       });
     });
   });
-  
+
   return schedule;
 }
