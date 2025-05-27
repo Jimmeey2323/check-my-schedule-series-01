@@ -115,94 +115,82 @@ async function ocrPage(page: any): Promise<string> {
     return text;
 }
 
-// Improved helper function to extract classes from content
-function extractClassesFromContent(content: string): { time: string; className: string; trainer: string }[] {
+// New approach: Parse column-based layout where classes and times are in separate sections
+function parseColumnBasedLayout(content: string): { time: string; className: string; trainer: string }[] {
   const classes: { time: string; className: string; trainer: string }[] = [];
   
-  // First, let's extract all the individual class-trainer pairs more carefully
-  // Look for patterns like: "BARRE 57 (EXPRESS) - Pranjali" or "powerCycle - Vivaran"
-  const classTrainerRegex = /([A-Z][A-Za-z0-9\s\(\)]+?)\s*-\s*([A-Za-z]+)(?=\s|$)/g;
-  let classTrainerMatch;
-  const classTrainers: { className: string; trainer: string }[] = [];
+  // Split content into lines and clean up
+  const lines = content.split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
   
-  while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
-    let className = classTrainerMatch[1].trim();
-    let trainerName = classTrainerMatch[2].trim();
-    
-    // Clean up class name - remove common OCR artifacts
-    className = className
-      .replace(/\s+/g, ' ')
-      .replace(/^\d+\s*/, '') // Remove leading numbers
-      .trim();
-    
-    // Skip if class name is too short or looks like noise
-    if (className.length < 3) continue;
-    
-    // Convert trainer name variations
-    if (trainerName === "Nishant") {
-      trainerName = "Nishanth";
-    }
-
-    classTrainers.push({
-      className: matchClassName(className),
-      trainer: trainerName
-    });
-  }
-  
-  // Extract times from the content
-  const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?[AP]M)/gi;
+  // Separate class-trainer pairs and times
+  const classTrainerPairs: { className: string; trainer: string }[] = [];
   const times: string[] = [];
-  let timeMatch;
   
-  while ((timeMatch = timeRegex.exec(content)) !== null) {
-    times.push(normalizeTime(timeMatch[1]));
+  for (const line of lines) {
+    // Check if it's a time
+    if (line.match(/^\d{1,2}[:\.]?\d{0,2}\s?(AM|PM)$/i)) {
+      times.push(normalizeTime(line));
+    }
+    // Check if it's a class-trainer pair (but not powerCycle by itself without dash)
+    else if (line.match(/^[A-Z].*\s-\s[A-Za-z]+$/)) {
+      const match = line.match(/^(.+?)\s-\s([A-Za-z]+)$/);
+      if (match) {
+        let className = match[1].trim();
+        let trainerName = match[2].trim();
+        
+        // Handle trainer name variations
+        if (trainerName === "Nishant") {
+          trainerName = "Nishanth";
+        }
+        
+        classTrainerPairs.push({
+          className: matchClassName(className),
+          trainer: trainerName
+        });
+      }
+    }
   }
   
-  console.log(`Found ${times.length} times and ${classTrainers.length} class-trainer pairs`);
+  console.log(`Found ${times.length} times and ${classTrainerPairs.length} class-trainer pairs`);
   console.log('Times:', times);
-  console.log('Class-Trainers:', classTrainers);
+  console.log('Class-Trainer pairs:', classTrainerPairs);
   
-  // Match times with class-trainer pairs
-  const count = Math.min(times.length, classTrainers.length);
+  // Pair them up by position
+  const count = Math.min(times.length, classTrainerPairs.length);
   for (let i = 0; i < count; i++) {
     classes.push({
       time: times[i],
-      className: classTrainers[i].className,
-      trainer: classTrainers[i].trainer
+      className: classTrainerPairs[i].className,
+      trainer: classTrainerPairs[i].trainer
     });
   }
   
   return classes;
 }
 
-// Alternative parsing approach for better accuracy
-function extractClassesAlternativeApproach(content: string): { time: string; className: string; trainer: string }[] {
+// Fallback: Extract from mixed content (for cases where layout is different)
+function extractClassesFromMixedContent(content: string): { time: string; className: string; trainer: string }[] {
   const classes: { time: string; className: string; trainer: string }[] = [];
   
-  // Split content into logical segments and process each
-  const segments = content.split(/(?=\d{1,2}[:.]?\d{0,2}\s?[AP]M)/i);
+  // Look for time-class-trainer patterns in sequence
+  const segments = content.split(/(?=\d{1,2}[:\.]?\d{0,2}\s?[AP]M)/i);
   
   segments.forEach(segment => {
-    // Extract time from beginning of segment
-    const timeMatch = segment.match(/^(\d{1,2}[:.]?\d{0,2}\s?[AP]M)/i);
+    const timeMatch = segment.match(/^(\d{1,2}[:\.]?\d{0,2}\s?[AP]M)/i);
     if (!timeMatch) return;
     
     const time = normalizeTime(timeMatch[1]);
-    
-    // Look for class-trainer pattern in the remaining text
     const remainingText = segment.slice(timeMatch[0].length).trim();
     
-    // More specific regex to match class names followed by trainer
-    const classTrainerMatch = remainingText.match(/^([A-Z][A-Za-z0-9\s\(\)]+?)\s*-\s*([A-Za-z]+)/);
+    // Look for the first class-trainer pattern after the time
+    const classTrainerMatch = remainingText.match(/([A-Z][A-Za-z0-9\s\(\)]+?)\s*-\s*([A-Za-z]+)/);
     
     if (classTrainerMatch) {
       let className = classTrainerMatch[1].trim();
       let trainerName = classTrainerMatch[2].trim();
       
-      // Clean up class name
-      className = className.replace(/\s+/g, ' ').trim();
-      
-      // Convert trainer name variations
       if (trainerName === "Nishant") {
         trainerName = "Nishanth";
       }
@@ -222,10 +210,10 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
   const schedule: PdfClassData[] = [];
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // Find the first day in the OCR text
+  // Find the first day in the text
   const firstDayMatch = fullText.match(new RegExp(`\\b(${daysOfWeek.join("|")})\\b`, "i"));
   if (!firstDayMatch) {
-    console.warn("No valid day found in the OCR data.");
+    console.warn("No valid day found in the PDF data.");
     return [];
   }
 
@@ -243,30 +231,34 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
     const day = normalizeDay(dayMatch[1]);
     let content = block.slice(dayMatch[0].length).trim();
 
-    // Debug log for each day
-    console.log(`Processing day: ${day}`);
-    console.log(`Raw content: ${content.substring(0, 200)}...`);
+    console.log(`\n=== Processing ${day} ===`);
+    console.log(`Raw content length: ${content.length}`);
 
-    // Clean up the content more thoroughly
+    // Clean up the content - remove noise but preserve structure
     content = content
-      .replace(/\s+/g, " ")
-      .replace(/7 YEARS STRONG/gi, "")
-      .replace(/BEAT THE TRAINER/gi, "")
-      .replace(/SLOGAN.*?(\.|$)/gi, "")
-      .replace(/INTERMEDIATE:\s*CARDIO\s*BARREARRE,?\s*MAT\s*57\s*•?\s*/gi, "")
-      .replace(/FOUNDATION\s*:\s*BARRE\s*57\s*•?\s*/gi, "")
-      .replace(/STUDIO\s*SCHEDULE.*?$/gi, "")
-      .replace(/BEGINNER\s*:.*?$/gi, "")
+      .replace(/INTERMEDIATE:\s*CARDIO\s*BARREARRE,?\s*MAT\s*57\s*[•\s]*/gi, "")
+      .replace(/FOUNDATION\s*:\s*BARRE\s*57\s*[•\s]*/gi, "")
+      .replace(/STUDIO\s*SCHEDULE.*$/gi, "")
+      .replace(/BEGINNER\s*:.*$/gi, "")
+      .replace(/BOILER\s*ROOM.*$/gi, "")
+      .replace(/COLDPLAY\s*CADENCE.*$/gi, "")
+      .replace(/FIRECRACKER\s*ABS.*$/gi, "")
+      .replace(/STRENGTH\s*MEETS\s*CARDIO.*$/gi, "")
+      .replace(/BLOCKBUSTER\s*BEATS.*$/gi, "")
+      .replace(/May\s*\d+.*?\d+.*$/gi, "")
+      .replace(/BANDRA.*$/gi, "")
       .trim();
 
-    console.log(`Cleaned content: ${content.substring(0, 200)}...`);
+    console.log(`Cleaned content preview: ${content.substring(0, 200)}...`);
 
-    // Try both approaches and use the one that gives better results
-    const classes1 = extractClassesFromContent(content);
-    const classes2 = extractClassesAlternativeApproach(content);
+    // Try column-based parsing first (for the structured layout)
+    let classes = parseColumnBasedLayout(content);
     
-    // Use the approach that found more valid classes
-    const classes = classes2.length > classes1.length ? classes2 : classes1;
+    // If that doesn't work well, try mixed content parsing
+    if (classes.length === 0) {
+      console.log("Column-based parsing failed, trying mixed content parsing...");
+      classes = extractClassesFromMixedContent(content);
+    }
     
     console.log(`Found ${classes.length} classes for ${day}`);
 
@@ -284,6 +276,8 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         location,
         uniqueKey
       });
+      
+      console.log(`Added: ${day} ${time} - ${className} with ${trainer}`);
     });
   });
 
