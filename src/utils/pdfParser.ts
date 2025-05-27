@@ -1,4 +1,3 @@
-
 import { PdfClassData } from '@/types/schedule';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
@@ -116,12 +115,42 @@ async function ocrPage(page: any): Promise<string> {
     return text;
 }
 
-// Helper function to extract classes from content
+// Improved helper function to extract classes from content
 function extractClassesFromContent(content: string): { time: string; className: string; trainer: string }[] {
   const classes: { time: string; className: string; trainer: string }[] = [];
   
-  // Match time values
-  const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?(AM|PM))/gi;
+  // First, let's extract all the individual class-trainer pairs more carefully
+  // Look for patterns like: "BARRE 57 (EXPRESS) - Pranjali" or "powerCycle - Vivaran"
+  const classTrainerRegex = /([A-Z][A-Za-z0-9\s\(\)]+?)\s*-\s*([A-Za-z]+)(?=\s|$)/g;
+  let classTrainerMatch;
+  const classTrainers: { className: string; trainer: string }[] = [];
+  
+  while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
+    let className = classTrainerMatch[1].trim();
+    let trainerName = classTrainerMatch[2].trim();
+    
+    // Clean up class name - remove common OCR artifacts
+    className = className
+      .replace(/\s+/g, ' ')
+      .replace(/^\d+\s*/, '') // Remove leading numbers
+      .trim();
+    
+    // Skip if class name is too short or looks like noise
+    if (className.length < 3) continue;
+    
+    // Convert trainer name variations
+    if (trainerName === "Nishant") {
+      trainerName = "Nishanth";
+    }
+
+    classTrainers.push({
+      className: matchClassName(className),
+      trainer: trainerName
+    });
+  }
+  
+  // Extract times from the content
+  const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?[AP]M)/gi;
   const times: string[] = [];
   let timeMatch;
   
@@ -129,22 +158,9 @@ function extractClassesFromContent(content: string): { time: string; className: 
     times.push(normalizeTime(timeMatch[1]));
   }
   
-  // Match class-trainer pairs using refined regex
-  const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-]+?)\s*-\s*([A-Za-z]+)/g;
-  let classTrainerMatch;
-  const classTrainers: { className: string; trainer: string }[] = [];
-  
-  while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
-    let trainerName = classTrainerMatch[2].trim();
-    if (trainerName === "Nishant") {
-      trainerName = "Nishanth"; // Convert Nishant to Nishanth
-    }
-
-    classTrainers.push({
-      className: matchClassName(classTrainerMatch[1].trim()),
-      trainer: trainerName
-    });
-  }
+  console.log(`Found ${times.length} times and ${classTrainers.length} class-trainer pairs`);
+  console.log('Times:', times);
+  console.log('Class-Trainers:', classTrainers);
   
   // Match times with class-trainer pairs
   const count = Math.min(times.length, classTrainers.length);
@@ -158,6 +174,50 @@ function extractClassesFromContent(content: string): { time: string; className: 
   
   return classes;
 }
+
+// Alternative parsing approach for better accuracy
+function extractClassesAlternativeApproach(content: string): { time: string; className: string; trainer: string }[] {
+  const classes: { time: string; className: string; trainer: string }[] = [];
+  
+  // Split content into logical segments and process each
+  const segments = content.split(/(?=\d{1,2}[:.]?\d{0,2}\s?[AP]M)/i);
+  
+  segments.forEach(segment => {
+    // Extract time from beginning of segment
+    const timeMatch = segment.match(/^(\d{1,2}[:.]?\d{0,2}\s?[AP]M)/i);
+    if (!timeMatch) return;
+    
+    const time = normalizeTime(timeMatch[1]);
+    
+    // Look for class-trainer pattern in the remaining text
+    const remainingText = segment.slice(timeMatch[0].length).trim();
+    
+    // More specific regex to match class names followed by trainer
+    const classTrainerMatch = remainingText.match(/^([A-Z][A-Za-z0-9\s\(\)]+?)\s*-\s*([A-Za-z]+)/);
+    
+    if (classTrainerMatch) {
+      let className = classTrainerMatch[1].trim();
+      let trainerName = classTrainerMatch[2].trim();
+      
+      // Clean up class name
+      className = className.replace(/\s+/g, ' ').trim();
+      
+      // Convert trainer name variations
+      if (trainerName === "Nishant") {
+        trainerName = "Nishanth";
+      }
+      
+      classes.push({
+        time,
+        className: matchClassName(className),
+        trainer: trainerName
+      });
+    }
+  });
+  
+  return classes;
+}
+
 export function parseScheduleFromPdfText(fullText: string, location: string): PdfClassData[] {
   const schedule: PdfClassData[] = [];
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -181,21 +241,33 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
     if (!dayMatch) return;
 
     const day = normalizeDay(dayMatch[1]);
-    const content = block.slice(dayMatch[0].length).trim();
+    let content = block.slice(dayMatch[0].length).trim();
 
     // Debug log for each day
-    console.log(`Processing day: ${day}, content length: ${content.length}`);
+    console.log(`Processing day: ${day}`);
+    console.log(`Raw content: ${content.substring(0, 200)}...`);
 
-    // Clean up the content
-    let cleanContent = content.replace(/\s+/g, " ").trim();
-    cleanContent = cleanContent
+    // Clean up the content more thoroughly
+    content = content
+      .replace(/\s+/g, " ")
       .replace(/7 YEARS STRONG/gi, "")
       .replace(/BEAT THE TRAINER/gi, "")
       .replace(/SLOGAN.*?(\.|$)/gi, "")
+      .replace(/INTERMEDIATE:\s*CARDIO\s*BARREARRE,?\s*MAT\s*57\s*•?\s*/gi, "")
+      .replace(/FOUNDATION\s*:\s*BARRE\s*57\s*•?\s*/gi, "")
+      .replace(/STUDIO\s*SCHEDULE.*?$/gi, "")
+      .replace(/BEGINNER\s*:.*?$/gi, "")
       .trim();
 
-    // Extract classes for the day
-    const classes = extractClassesFromContent(cleanContent);
+    console.log(`Cleaned content: ${content.substring(0, 200)}...`);
+
+    // Try both approaches and use the one that gives better results
+    const classes1 = extractClassesFromContent(content);
+    const classes2 = extractClassesAlternativeApproach(content);
+    
+    // Use the approach that found more valid classes
+    const classes = classes2.length > classes1.length ? classes2 : classes1;
+    
     console.log(`Found ${classes.length} classes for ${day}`);
 
     // Add classes to the schedule
