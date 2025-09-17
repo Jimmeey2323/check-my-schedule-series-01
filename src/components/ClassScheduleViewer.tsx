@@ -34,10 +34,14 @@ export function ClassScheduleViewer() {
   useEffect(() => {
     if (csvData) {
       localStorage.setItem('csvScheduleData', JSON.stringify(csvData));
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('scheduleDataUpdated'));
     }
     
     if (pdfData) {
       localStorage.setItem('pdfScheduleData', JSON.stringify(pdfData));
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('scheduleDataUpdated'));
     }
   }, [csvData, pdfData]);
 

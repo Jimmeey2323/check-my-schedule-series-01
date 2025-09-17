@@ -1,7 +1,7 @@
 import type { ViteDevServer } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = 'AIzaSyAq_QgITLnhKtvKrFhOw-rvHc0G8FURgPM';
 const MODEL_ID = 'gemini-2.5-pro';
 const GENERATE_CONTENT_API = 'streamGenerateContent';
 
