@@ -8,7 +8,7 @@ const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 const allowedNames = [
   'Rohan', 'Anisha', 'Richard', 'Pranjali', 'Reshma', 'Atulan', 'Karanvir',
   'Cauveri', 'Mrigakshi', 'Vivaran', 'Karan', 'Nishanth', 'Pushyank',
-  'Kajol', 'Siddhartha', 'Shruti K'
+  'Kajol', 'Siddhartha', 'Shruti K','Veena','Chaitanya'
 ];
 
 // Class name mappings for normalization
