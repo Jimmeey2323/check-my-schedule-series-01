@@ -131,15 +131,65 @@ export function normalizeTrainerName(raw: string): string {
   return raw.trim();
 }
 
+// Helper function to normalize time string format
+export function normalizeTimeString(timeStr: string): string {
+  if (!timeStr) return '';
+  
+  let time = timeStr.trim();
+  
+  // First, try to identify if this is a comma-separated list of multiple times
+  // vs a single time with comma as separator (like "7,15 PM")
+  
+  // Pattern to match complete time format: digits, optional colon/comma/dot, digits, space, AM/PM
+  const completeTimePattern = /\d{1,2}[.:,]?\d{0,2}\s*(AM|PM)/gi;
+  const timeMatches = time.match(completeTimePattern) || [];
+  
+  if (timeMatches.length > 1) {
+    // Multiple complete times found - take the first one
+    time = timeMatches[0];
+  } else if (timeMatches.length === 1) {
+    // Single complete time found
+    time = timeMatches[0];
+  } else {
+    // No complete time pattern found, but maybe it's a malformed time
+    // Check if it contains AM/PM somewhere
+    const ampmMatch = time.match(/(AM|PM)/i);
+    if (ampmMatch) {
+      // Find the part with AM/PM and try to extract a reasonable time
+      const ampmIndex = time.indexOf(ampmMatch[0]);
+      // Look backward for numbers that could be the time
+      const beforeAmPm = time.substring(0, ampmIndex).trim();
+      const numbersBeforeAmPm = beforeAmPm.match(/[\d,.:]+$/);
+      if (numbersBeforeAmPm) {
+        time = numbersBeforeAmPm[0] + ' ' + ampmMatch[0];
+      }
+    }
+  }
+  
+  // Now normalize the selected time string
+  // Replace commas with colons in time format (e.g., "7,15" -> "7:15")
+  time = time.replace(/(\d),(\d)/g, '$1:$2');
+  
+  // Replace fullstops with colons in time strings (e.g., "7.15" -> "7:15")
+  time = time.replace(/\./g, ':');
+  
+  // Ensure AM/PM is always preceded by a space
+  time = time.replace(/(\d)(AM|PM)/gi, '$1 $2');
+  
+  // Handle cases where there might be multiple spaces before AM/PM
+  time = time.replace(/\s+(AM|PM)/gi, ' $1');
+  
+  return time.trim().toUpperCase();
+}
+
 // Helper function to parse time string to Date
 export function parseTimeToDate(timeStr: string): Date | null {
   if (!timeStr) return null;
 
   const today = new Date();
-  let time = timeStr.trim().toUpperCase();
-
-  // Replace fullstops with colons in time strings
-  time = time.replace(/\./g, ':');
+  
+  // First normalize the time string
+  let time = normalizeTimeString(timeStr);
 
   // Try to match time in format "HH:MM AM/PM"
   const ampmMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);

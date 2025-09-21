@@ -28,13 +28,56 @@ const classNameMappings: {[key: string]: string} = {
 
 // Helper function to normalize time string
 function normalizeTime(rawTime: string): string {
-  let t = rawTime.replace(/(\d{1,2})\.(\d{2})/g, '$1:$2').trim().toUpperCase();
+  if (!rawTime) return '';
   
-  if (!t.match(/\d{1,2}:\d{2}/)) {
-    t = t.replace(/(\d{1,2})(\s?[AP]M)/, '$1:00$2');
+  let time = rawTime.trim();
+  
+  // Apply the same time normalization logic as CSV parser
+  // Pattern to match complete time format: digits, optional colon/comma/dot, digits, space, AM/PM
+  const completeTimePattern = /\d{1,2}[.:,]?\d{0,2}\s*(AM|PM)/gi;
+  const timeMatches = time.match(completeTimePattern) || [];
+  
+  if (timeMatches.length > 1) {
+    // Multiple complete times found - take the first one
+    time = timeMatches[0];
+  } else if (timeMatches.length === 1) {
+    // Single complete time found
+    time = timeMatches[0];
+  } else {
+    // No complete time pattern found, but maybe it's a malformed time
+    // Check if it contains AM/PM somewhere
+    const ampmMatch = time.match(/(AM|PM)/i);
+    if (ampmMatch) {
+      // Find the part with AM/PM and try to extract a reasonable time
+      const ampmIndex = time.indexOf(ampmMatch[0]);
+      // Look backward for numbers that could be the time
+      const beforeAmPm = time.substring(0, ampmIndex).trim();
+      const numbersBeforeAmPm = beforeAmPm.match(/[\d,.:]+$/);
+      if (numbersBeforeAmPm) {
+        time = numbersBeforeAmPm[0] + ' ' + ampmMatch[0];
+      }
+    }
   }
   
-  return t;
+  // Now normalize the selected time string
+  // Replace commas with colons in time format (e.g., "7,15" -> "7:15")
+  time = time.replace(/(\d),(\d)/g, '$1:$2');
+  
+  // Replace fullstops with colons in time strings (e.g., "7.15" -> "7:15")
+  time = time.replace(/\./g, ':');
+  
+  // Ensure AM/PM is always preceded by a space
+  time = time.replace(/(\d)(AM|PM)/gi, '$1 $2');
+  
+  // Handle cases where there might be multiple spaces before AM/PM
+  time = time.replace(/\s+(AM|PM)/gi, ' $1');
+  
+  // Legacy fallback: if still no proper format, try the old logic
+  if (!time.match(/\d{1,2}:\d{2}/)) {
+    time = time.replace(/(\d{1,2})(\s?[AP]M)/, '$1:00$2');
+  }
+  
+  return time.trim().toUpperCase();
 }
 
 // Helper function to normalize class name
