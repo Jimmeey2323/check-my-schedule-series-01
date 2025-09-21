@@ -13,8 +13,18 @@ const knownClassesList = [
   "Barre 57", "Cardio Barre", "Cardio Barre Plus", "Cardio Barre (Express)", 
   "Foundations", "Mat 57", "Mat 57 (Express)", "Fit", "Back Body Blaze", 
   "Back Body Blaze (Express)", "Sweat in 30", "Recovery", "Pre/Post Natal", 
-  "HIIT", "Amped Up!", "Trainer's Choice", "PowerCycle", "PowerCycle (Express)"
+  "HIIT", "Amped Up!", "Trainer's Choice", "PowerCycle", "PowerCycle (Express)",
+  "Strength - FB", "Strength - Pull", "Strength - Push"
 ];
+
+// Class name mappings for normalization
+const classNameMappings: {[key: string]: string} = {
+  'STRENGTH LAB (FULL BODY)': 'Strength - FB',
+  'STRENGTH LAB (PULL)': 'Strength - Pull',
+  'STRENGTH LAB (PUSH)': 'Strength - Push',
+  'STRENGTH (PULL)': 'Strength - Pull',
+  'STRENGTH (PUSH)': 'Strength - Push'
+};
 
 // Helper function to normalize time string
 function normalizeTime(rawTime: string): string {
@@ -29,6 +39,17 @@ function normalizeTime(rawTime: string): string {
 
 // Helper function to normalize class name
 function matchClassName(text: string): string {
+  if (!text) return '';
+  
+  // First check for exact mappings
+  const trimmed = text.trim();
+  for (const [key, value] of Object.entries(classNameMappings)) {
+    if (trimmed.toUpperCase() === key.toUpperCase()) {
+      return value;
+    }
+  }
+  
+  // Then use fuzzy matching for other classes
   const fuse = new Fuse(knownClassesList, { 
     includeScore: true, 
     threshold: 0.4, 
@@ -44,6 +65,38 @@ function matchClassName(text: string): string {
   }
   
   return text.trim();
+}
+
+// Helper function to check if a class name is valid (not a trainer name or invalid entry)
+function isValidClassName(className: string): boolean {
+  if (!className || className.trim() === '') return false;
+  
+  const trimmed = className.trim().toLowerCase();
+  
+  // List of invalid class names that should be excluded
+  const invalidNames = [
+    'smita parekh', 'anandita', '2', 'hosted', '1', 'taarika', 'sakshi',
+    'smita', 'parekh', 'anand', 'anandi', 'host', 'cover', 'replacement'
+  ];
+  
+  // Check if the class name matches any invalid names
+  for (const invalid of invalidNames) {
+    if (trimmed === invalid || trimmed.includes(invalid)) {
+      return false;
+    }
+  }
+  
+  // Check if it's just a number
+  if (/^\d+$/.test(trimmed)) {
+    return false;
+  }
+  
+  // Check if it's a single word that might be a trainer name
+  if (trimmed.split(' ').length === 1 && trimmed.length < 4) {
+    return false;
+  }
+  
+  return true;
 }
 
 // Helper function to normalize day name
@@ -200,6 +253,12 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
 
     // Add classes to the schedule
     classes.forEach(({ time, className, trainer }) => {
+      // Filter out invalid class names
+      if (!isValidClassName(className)) {
+        console.log(`Filtering out invalid class: ${className}`);
+        return;
+      }
+      
       const uniqueKey = (day + time + className + trainer + location)
         .toLowerCase()
         .replace(/\s+/g, "");

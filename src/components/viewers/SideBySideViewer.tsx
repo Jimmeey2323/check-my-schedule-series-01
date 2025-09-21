@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ClassData, PdfClassData, FilterState } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +25,12 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   const [filteredCsvData, setFilteredCsvData] = useState<ClassData[]>([]);
   const [filteredPdfData, setFilteredPdfData] = useState<PdfClassData[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  
+  // Refs for synchronized scrolling
+  const csvScrollRef = useRef<HTMLDivElement>(null);
+  const pdfScrollRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Load saved filters
   useEffect(() => {
@@ -100,6 +106,57 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     localStorage.setItem('csvFilters', JSON.stringify(newFilters));
   };
   
+  // Synchronized scrolling handlers
+  const handleCsvScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollingRef.current) return;
+    
+    const element = e.currentTarget;
+    const scrollTop = element.scrollTop;
+    const scrollLeft = element.scrollLeft;
+    
+    isScrollingRef.current = true;
+    
+    if (pdfScrollRef.current) {
+      pdfScrollRef.current.scrollTop = scrollTop;
+      pdfScrollRef.current.scrollLeft = scrollLeft;
+    }
+    
+    // Clear any existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Reset the scrolling flag after a short delay
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 100);
+  };
+  
+  const handlePdfScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollingRef.current) return;
+    
+    const element = e.currentTarget;
+    const scrollTop = element.scrollTop;
+    const scrollLeft = element.scrollLeft;
+    
+    isScrollingRef.current = true;
+    
+    if (csvScrollRef.current) {
+      csvScrollRef.current.scrollTop = scrollTop;
+      csvScrollRef.current.scrollLeft = scrollLeft;
+    }
+    
+    // Clear any existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Reset the scrolling flag after a short delay
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 100);
+  };
+  
   // Pagination handlers
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
@@ -140,81 +197,144 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   
   // View mode options
   const renderTableView = () => {
+    // Group data by day for better comparison
+    const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const groupedCsvData: {[day: string]: ClassData[]} = {};
+    const groupedPdfData: {[day: string]: PdfClassData[]} = {};
+    
+    // Group filtered data by day
+    filteredCsvData.forEach(item => {
+      if (!groupedCsvData[item.day]) groupedCsvData[item.day] = [];
+      groupedCsvData[item.day].push(item);
+    });
+    
+    filteredPdfData.forEach(item => {
+      if (!groupedPdfData[item.day]) groupedPdfData[item.day] = [];
+      groupedPdfData[item.day].push(item);
+    });
+    
+    // Get all available days
+    const allDays = Array.from(new Set([
+      ...Object.keys(groupedCsvData),
+      ...Object.keys(groupedPdfData)
+    ])).sort((a, b) => {
+      const aIndex = daysOrder.indexOf(a);
+      const bIndex = daysOrder.indexOf(b);
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+
     return (
-      <div className="flex flex-col md:flex-row gap-4 mt-4 h-[calc(100vh-400px)]">
+      <div className="flex gap-4 mt-4 h-[calc(100vh-400px)]">
         {/* CSV Table */}
-        <Card className="flex-1 overflow-hidden">
-          <CardContent className="p-0 h-full">
-            <ScrollArea className="h-full">
-              <div className="p-2 bg-blue-50 font-semibold text-center">CSV Schedule ({filteredCsvData.length} classes)</div>
-              <Table>
-                <TableHeader className="sticky top-0 z-10">
-                  <TableRow>
-                    <TableHead className="bg-blue-600 text-white">Day</TableHead>
-                    <TableHead className="bg-blue-600 text-white">Time</TableHead>
-                    <TableHead className="bg-blue-600 text-white">Class</TableHead>
-                    <TableHead className="bg-blue-600 text-white">Trainer</TableHead>
-                    <TableHead className="bg-blue-600 text-white">Location</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedCsvData.length > 0 ? (
-                    paginatedCsvData.map((item, idx) => (
-                      <TableRow key={`csv-${idx}`} className="hover:bg-blue-50">
-                        <TableCell>{item.day}</TableCell>
-                        <TableCell>{item.time}</TableCell>
-                        <TableCell>{item.className}</TableCell>
-                        <TableCell>{item.trainer1}</TableCell>
-                        <TableCell>{item.location}</TableCell>
-                      </TableRow>
-                    ))
+        <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold text-center">
+            📊 CSV Schedule ({filteredCsvData.length} classes)
+          </div>
+          <div 
+            ref={csvScrollRef}
+            className="flex-1 overflow-auto"
+            onScroll={handleCsvScroll}
+          >
+            {allDays.map(day => {
+              const dayClasses = groupedCsvData[day] || [];
+              return (
+                <div key={`csv-${day}`} className="border-b border-gray-100">
+                  <div className="sticky top-0 bg-blue-50 px-4 py-2 font-medium text-blue-800 border-b border-blue-200 z-10">
+                    {day} ({dayClasses.length} classes)
+                  </div>
+                  {dayClasses.length > 0 ? (
+                    <table className="w-full">
+                      <thead className="bg-blue-100 sticky top-8 z-10">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Time</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Class</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Trainer</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dayClasses.map((item, idx) => (
+                          <tr key={`csv-${day}-${idx}`} className="hover:bg-blue-50 border-b border-gray-100">
+                            <td className="px-3 py-2 text-sm">{item.time}</td>
+                            <td className="px-3 py-2 text-sm font-medium">{item.className}</td>
+                            <td className="px-3 py-2 text-sm">{item.trainer1}</td>
+                            <td className="px-3 py-2 text-sm">{item.location}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">No CSV data matches your filters</TableCell>
-                    </TableRow>
+                    <div className="px-4 py-8 text-center text-gray-500 text-sm">No classes for {day}</div>
                   )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                </div>
+              );
+            })}
+          </div>
+        </div>
         
         {/* PDF Table */}
-        <Card className="flex-1 overflow-hidden">
-          <CardContent className="p-0 h-full">
-            <ScrollArea className="h-full">
-              <div className="p-2 bg-red-50 font-semibold text-center">PDF Schedule ({filteredPdfData.length} classes)</div>
-              <Table>
-                <TableHeader className="sticky top-0 z-10">
-                  <TableRow>
-                    <TableHead className="bg-red-600 text-white">Day</TableHead>
-                    <TableHead className="bg-red-600 text-white">Time</TableHead>
-                    <TableHead className="bg-red-600 text-white">Class</TableHead>
-                    <TableHead className="bg-red-600 text-white">Trainer</TableHead>
-                    <TableHead className="bg-red-600 text-white">Location</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedPdfData.length > 0 ? (
-                    paginatedPdfData.map((item, idx) => (
-                      <TableRow key={`pdf-${idx}`} className="hover:bg-red-50">
-                        <TableCell>{item.day}</TableCell>
-                        <TableCell>{item.time}</TableCell>
-                        <TableCell>{item.className}</TableCell>
-                        <TableCell>{item.trainer}</TableCell>
-                        <TableCell>{item.location}</TableCell>
-                      </TableRow>
-                    ))
+        <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-center">
+            📋 PDF Schedule ({filteredPdfData.length} classes)
+          </div>
+          <div 
+            ref={pdfScrollRef}
+            className="flex-1 overflow-auto"
+            onScroll={handlePdfScroll}
+          >
+            {allDays.map(day => {
+              const dayClasses = groupedPdfData[day] || [];
+              return (
+                <div key={`pdf-${day}`} className="border-b border-gray-100">
+                  <div className="sticky top-0 bg-red-50 px-4 py-2 font-medium text-red-800 border-b border-red-200 z-10">
+                    {day} ({dayClasses.length} classes)
+                  </div>
+                  {dayClasses.length > 0 ? (
+                    <table className="w-full">
+                      <thead className="bg-red-100 sticky top-8 z-10">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Time</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Class</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Trainer</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dayClasses.map((item, idx) => {
+                          // Check for mismatch with CSV data
+                          const csvMatch = groupedCsvData[day]?.find(csv => 
+                            csv.time === item.time && csv.className === item.className
+                          );
+                          const hasMismatch = csvMatch && csvMatch.trainer1 !== item.trainer;
+                          
+                          return (
+                            <tr 
+                              key={`pdf-${day}-${idx}`} 
+                              className={`hover:bg-red-50 border-b border-gray-100 ${hasMismatch ? 'bg-yellow-50' : ''}`}
+                            >
+                              <td className="px-3 py-2 text-sm">{item.time}</td>
+                              <td className="px-3 py-2 text-sm font-medium">{item.className}</td>
+                              <td className={`px-3 py-2 text-sm ${hasMismatch ? 'text-red-600 font-semibold' : ''}`}>
+                                {item.trainer}
+                                {hasMismatch && <span className="ml-1">⚠️</span>}
+                              </td>
+                              <td className="px-3 py-2 text-sm">{item.location}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">No PDF data matches your filters</TableCell>
-                    </TableRow>
+                    <div className="px-4 py-8 text-center text-gray-500 text-sm">No classes for {day}</div>
                   )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   };
@@ -223,48 +343,60 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     return (
       <div className="flex flex-col md:flex-row gap-4 mt-4 h-[calc(100vh-400px)]">
         {/* CSV Cards */}
-        <ScrollArea className="flex-1 h-full border rounded-md p-2 bg-blue-50">
+        <div className="flex-1 h-full border rounded-md p-2 bg-blue-50 overflow-hidden">
           <div className="p-2 font-semibold text-center mb-2">CSV Schedule ({filteredCsvData.length} classes)</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
-            {paginatedCsvData.length > 0 ? (
-              paginatedCsvData.map((item, idx) => (
-                <Card key={`csv-card-${idx}`}>
-                  <CardContent className="p-4">
-                    <div className="font-bold text-lg mb-1">{item.className}</div>
-                    <div><span className="font-medium">Day:</span> {item.day}</div>
-                    <div><span className="font-medium">Time:</span> {item.time}</div>
-                    <div><span className="font-medium">Trainer:</span> {item.trainer1}</div>
-                    <div><span className="font-medium">Location:</span> {item.location}</div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-2 text-center py-8">No CSV data matches your filters</div>
-            )}
+          <div 
+            ref={csvScrollRef}
+            className="h-[calc(100%-3rem)] overflow-auto"
+            onScroll={handleCsvScroll}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
+              {paginatedCsvData.length > 0 ? (
+                paginatedCsvData.map((item, idx) => (
+                  <Card key={`csv-card-${idx}`}>
+                    <CardContent className="p-4">
+                      <div className="font-bold text-lg mb-1">{item.className}</div>
+                      <div><span className="font-medium">Day:</span> {item.day}</div>
+                      <div><span className="font-medium">Time:</span> {item.time}</div>
+                      <div><span className="font-medium">Trainer:</span> {item.trainer1}</div>
+                      <div><span className="font-medium">Location:</span> {item.location}</div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="col-span-2 text-center py-8">No CSV data matches your filters</div>
+              )}
+            </div>
           </div>
-        </ScrollArea>
+        </div>
         
         {/* PDF Cards */}
-        <ScrollArea className="flex-1 h-full border rounded-md p-2 bg-red-50">
+        <div className="flex-1 h-full border rounded-md p-2 bg-red-50 overflow-hidden">
           <div className="p-2 font-semibold text-center mb-2">PDF Schedule ({filteredPdfData.length} classes)</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
-            {paginatedPdfData.length > 0 ? (
-              paginatedPdfData.map((item, idx) => (
-                <Card key={`pdf-card-${idx}`}>
-                  <CardContent className="p-4">
-                    <div className="font-bold text-lg mb-1">{item.className}</div>
-                    <div><span className="font-medium">Day:</span> {item.day}</div>
-                    <div><span className="font-medium">Time:</span> {item.time}</div>
-                    <div><span className="font-medium">Trainer:</span> {item.trainer}</div>
-                    <div><span className="font-medium">Location:</span> {item.location}</div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-2 text-center py-8">No PDF data matches your filters</div>
-            )}
+          <div 
+            ref={pdfScrollRef}
+            className="h-[calc(100%-3rem)] overflow-auto"
+            onScroll={handlePdfScroll}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
+              {paginatedPdfData.length > 0 ? (
+                paginatedPdfData.map((item, idx) => (
+                  <Card key={`pdf-card-${idx}`}>
+                    <CardContent className="p-4">
+                      <div className="font-bold text-lg mb-1">{item.className}</div>
+                      <div><span className="font-medium">Day:</span> {item.day}</div>
+                      <div><span className="font-medium">Time:</span> {item.time}</div>
+                      <div><span className="font-medium">Trainer:</span> {item.trainer}</div>
+                      <div><span className="font-medium">Location:</span> {item.location}</div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="col-span-2 text-center py-8">No PDF data matches your filters</div>
+              )}
+            </div>
           </div>
-        </ScrollArea>
+        </div>
       </div>
     );
   };
@@ -488,44 +620,57 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         
         <div className="flex flex-wrap justify-between items-center gap-4 mt-4">
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full">
-            <TabsList className="grid grid-cols-5 w-full">
-              <TabsTrigger value="table">Table View</TabsTrigger>
-              <TabsTrigger value="cards">Cards View</TabsTrigger>
-              <TabsTrigger value="compact">Compact View</TabsTrigger>
-              <TabsTrigger value="detailed">Detailed View</TabsTrigger>
-              <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+            <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+              <TabsTrigger value="table">📊 Table</TabsTrigger>
+              <TabsTrigger value="cards">🗃️ Cards</TabsTrigger>
+              <TabsTrigger value="compact">📋 Compact</TabsTrigger>
+              <TabsTrigger value="detailed">📝 Detailed</TabsTrigger>
+              <TabsTrigger value="calendar">📅 Calendar</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
         
-        <div className="flex justify-between items-center mt-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <label htmlFor="perPage" className="mr-2 text-sm font-medium">Items per page:</label>
-              <select
-                id="perPage"
-                value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                className="border rounded px-2 py-1 text-sm"
-              >
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </select>
+        {/* Only show pagination controls for non-table views */}
+        {viewMode !== 'table' && (
+          <div className="flex justify-between items-center mt-4 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div>
+                <label htmlFor="perPage" className="mr-2 text-sm font-medium">Items per page:</label>
+                <select
+                  id="perPage"
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm bg-white"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              
+              <div>
+                <span className="text-sm font-medium">
+                  {currentPage} of {totalPages} pages
+                </span>
+              </div>
             </div>
             
-            <div>
-              <span className="text-sm font-medium">
-                {currentPage} of {totalPages} pages
-              </span>
+            <div className="text-sm font-medium text-gray-600">
+              CSV: {filteredCsvData.length} classes | PDF: {filteredPdfData.length} classes
             </div>
           </div>
-          
-          <div className="text-sm font-medium">
-            CSV: {filteredCsvData.length} classes | PDF: {filteredPdfData.length} classes
+        )}
+        
+        {/* Show summary for table view */}
+        {viewMode === 'table' && (
+          <div className="flex justify-end mt-4 p-3 bg-gradient-to-r from-blue-50 to-red-50 rounded-lg border">
+            <div className="text-sm font-medium text-gray-700">
+              📊 CSV: <span className="text-blue-600">{filteredCsvData.length}</span> classes | 
+              📋 PDF: <span className="text-red-600">{filteredPdfData.length}</span> classes
+            </div>
           </div>
-        </div>
+        )}
       </div>
       
       {viewMode === 'table' && renderTableView()}
@@ -534,11 +679,19 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
       {viewMode === 'detailed' && renderDetailedView()}
       {viewMode === 'calendar' && renderCalendarView()}
       
-      {totalPages > 1 && (
+      {/* Only show pagination for non-table views that use pagination */}
+      {viewMode !== 'table' && totalPages > 1 && (
         <Pagination className="mt-4">
           <PaginationContent>
             <PaginationItem>
-              <PaginationPrevious onClick={handlePrevPage} disabled={currentPage === 1} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
             </PaginationItem>
             
             {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
@@ -570,7 +723,14 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
             })}
             
             <PaginationItem>
-              <PaginationNext onClick={handleNextPage} disabled={currentPage === totalPages} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
             </PaginationItem>
           </PaginationContent>
         </Pagination>

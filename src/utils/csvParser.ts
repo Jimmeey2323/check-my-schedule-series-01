@@ -8,7 +8,7 @@ const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 const allowedNames = [
   'Rohan', 'Anisha', 'Richard', 'Pranjali', 'Reshma', 'Atulan', 'Karanvir',
   'Cauveri', 'Mrigakshi', 'Vivaran', 'Karan', 'Nishanth', 'Pushyank',
-  'Kajol', 'Siddhartha', 'Shruti K','Veena','Chaitanya'
+  'Kajol', 'Siddhartha', 'Shruti K','Veena','Chaitanya', 'Raunak'
 ];
 
 // Class name mappings for normalization
@@ -38,7 +38,10 @@ const classNameMappings: {[key: string]: string} = {
   'Sweat': 'Sweat in 30',
   'Barre 57 exp': 'Barre 57 (Express)',
   'Barre57 exp': 'Barre 57 (Express)',
-  'Amped Up': 'Amped Up!'
+  'Amped Up': 'Amped Up!',
+  'STRENGTH LAB (FULL BODY)': 'Strength - FB',
+  'STRENGTH (PULL)': 'Strength - Pull',
+  'STRENGTH (PUSH)': 'Strength - Push'
 };
 
 // Helper function to normalize class name
@@ -56,6 +59,52 @@ export function normalizeClassName(raw: string): string {
   return raw;
 }
 
+// Helper function to check if a class name is valid (not a trainer name or invalid entry)
+export function isValidClassName(className: string): boolean {
+  if (!className || className.trim() === '') return false;
+  
+  const trimmed = className.trim().toLowerCase();
+  
+  // List of invalid class names that should be excluded
+  const invalidNames = [
+    'smita parekh', 'anandita', '2', 'hosted', '1', 'taarika', 'sakshi',
+    'smita', 'parekh', 'anand', 'anandi', 'host', 'cover', 'replacement'
+  ];
+  
+  // Check if the class name matches any invalid names
+  for (const invalid of invalidNames) {
+    if (trimmed === invalid || trimmed.includes(invalid)) {
+      return false;
+    }
+  }
+  
+  // Check if it's just a number
+  if (/^\d+$/.test(trimmed)) {
+    return false;
+  }
+  
+  // Check if it's a single word that might be a trainer name
+  if (trimmed.split(' ').length === 1 && trimmed.length < 4) {
+    return false;
+  }
+  
+  return true;
+}
+
+// Helper function to normalize location name
+export function normalizeLocationName(raw: string): string {
+  if (!raw) return '';
+  
+  // Trim and normalize the input string
+  const val = raw.trim().toLowerCase();
+
+  // Specific replacements for location names
+  if (val === 'annex') return 'Kemps';
+  
+  // Return the original value if no matches are found
+  return raw.trim();
+}
+
 // Helper function to normalize trainer name
 export function normalizeTrainerName(raw: string): string {
   if (!raw) return '';
@@ -66,6 +115,7 @@ export function normalizeTrainerName(raw: string): string {
   // Specific replacements for trainer names
   if (val === 'mriga') return 'Mrigakshi';
   if (val === 'nishant') return 'Nishanth';
+  if (val === 'raunaq') return 'Raunak';
 
   // Check for exact matches in the allowed names
   for (const name of allowedNames) {
@@ -188,7 +238,7 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
               const trainer1Col = trainer1Cols[setIdx];
               const coverCol = coverCols[setIdx];
               
-              const location = row[locCol]?.trim() || '';
+              const location = normalizeLocationName(row[locCol]?.trim() || '');
               if (!location) continue;
               
               const dayRaw = dayRow[dayCol]?.trim() || 'Unknown';
@@ -196,7 +246,7 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
               
               let classNameRaw = row[classCol]?.trim() || '';
               let className = normalizeClassName(classNameRaw);
-              if (!className) continue;
+              if (!className || !isValidClassName(className)) continue;
               
               let trainer1Raw = row[trainer1Col]?.trim() || '';
               let coverRaw = row[coverCol]?.trim() || '';

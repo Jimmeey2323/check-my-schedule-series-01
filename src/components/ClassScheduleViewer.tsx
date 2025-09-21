@@ -5,6 +5,7 @@ import { CsvViewer } from './viewers/CsvViewer';
 import { PdfViewer } from './viewers/PdfViewer';
 import { ComparisonViewer } from './viewers/ComparisonViewer';
 import { SideBySideViewer } from './viewers/SideBySideViewer';
+import { QuickMismatchViewer } from './viewers/QuickMismatchViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 
@@ -49,7 +50,8 @@ export function ClassScheduleViewer() {
     { id: 'csv', label: 'CSV Schedule' },
     { id: 'pdf', label: 'PDF Schedule' },
     { id: 'compare', label: 'Comparison' },
-    { id: 'side-by-side', label: 'Side by Side' }
+    { id: 'side-by-side', label: 'Side by Side' },
+    { id: 'quick-mismatch', label: 'Quick Mismatch' }
   ];
 
   const handleCsvDataUpdate = (data: {[day: string]: ClassData[]}) => {
@@ -96,6 +98,13 @@ export function ClassScheduleViewer() {
 
         {activeTab === 'side-by-side' && (
           <SideBySideViewer
+            csvData={csvData}
+            pdfData={pdfData}
+          />
+        )}
+
+        {activeTab === 'quick-mismatch' && (
+          <QuickMismatchViewer
             csvData={csvData}
             pdfData={pdfData}
           />

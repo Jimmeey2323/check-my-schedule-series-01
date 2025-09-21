@@ -63,14 +63,14 @@ export function ScheduleTabs({ classesByDay, filters }: ScheduleTabsProps) {
   
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-300 pb-2" role="tablist">
+      <div className="flex flex-wrap gap-2 mb-6 p-1 bg-gray-50 rounded-lg border" role="tablist">
         {days.map((day, idx) => (
           <button
             key={day}
-            className={`px-4 py-2 rounded-t-lg border border-b-0 border-gray-300 transition ${
+            className={`px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 ${
               activeDay === day
-                ? 'bg-white font-semibold text-blue-600 border-blue-500'
-                : 'bg-gray-100 text-gray-700 hover:bg-blue-50'
+                ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
             }`}
             onClick={() => setActiveDay(day)}
             data-day={day}
@@ -83,49 +83,52 @@ export function ScheduleTabs({ classesByDay, filters }: ScheduleTabsProps) {
         ))}
       </div>
       
-      <Card className="flex-grow overflow-hidden">
-        <div className="overflow-auto h-full">
-          <Table>
-            <TableHeader className="sticky top-0 z-10">
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Class</TableHead>
-                <TableHead>Trainer</TableHead>
-                <TableHead>Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      <div className="flex-grow bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="h-full overflow-auto">
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0 z-10">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium">Time</th>
+                <th className="px-4 py-3 text-left font-medium">Location</th>
+                <th className="px-4 py-3 text-left font-medium">Class</th>
+                <th className="px-4 py-3 text-left font-medium">Trainer</th>
+                <th className="px-4 py-3 text-left font-medium">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
               {filteredClasses.length > 0 ? (
                 filteredClasses.map((cls, index) => (
-                  <TableRow key={index} className="hover:bg-blue-50">
-                    <TableCell className="whitespace-nowrap">{cls.time}</TableCell>
-                    <TableCell className="whitespace-nowrap">{cls.location}</TableCell>
-                    <TableCell>{cls.className}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
+                  <tr key={index} className="hover:bg-blue-50 border-b border-gray-100 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{cls.time}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">{cls.location}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{cls.className}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <div className="flex items-center space-x-3">
                         <img
                           src={getTrainerImageUrl(cls.trainer1)}
                           alt={`Trainer ${cls.trainer1}`}
-                          className="w-7 h-7 rounded-full border-2 border-gray-200 object-cover"
+                          className="w-8 h-8 rounded-full border-2 border-blue-200 object-cover shadow-sm"
                         />
-                        <span>{cls.trainer1}</span>
+                        <span className="font-medium">{cls.trainer1}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>{cls.notes || '-'}</TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{cls.notes || '-'}</td>
+                  </tr>
                 ))
               ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    No classes found for the selected filters
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-2xl">📅</span>
+                      <span>No classes found for the selected filters</span>
+                    </div>
+                  </td>
+                </tr>
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

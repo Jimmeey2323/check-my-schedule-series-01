@@ -5,7 +5,7 @@ const app = express();
 const port = 3001;
 
 const GEMINI_API_KEY = 'AIzaSyAq_QgITLnhKtvKrFhOw-rvHc0G8FURgPM';
-const MODEL_ID = 'gemini-2.0-flash-exp';
+const MODEL_ID = 'gemini-1.5-pro';
 const GENERATE_CONTENT_API = 'generateContent';
 
 app.use(cors());

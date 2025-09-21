@@ -9,9 +9,7 @@ export default function Index() {
   return (
     <Layout>
       <ClassScheduleViewer />
-      <div style={{ marginTop: 32 }}>
-        <GeminiAssistant />
-      </div>
+      <GeminiAssistant />
     </Layout>
   );
 }
