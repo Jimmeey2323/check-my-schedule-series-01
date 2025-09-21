@@ -137,11 +137,12 @@ export function normalizeTimeString(timeStr: string): string {
   
   let time = timeStr.trim();
   
-  // First, try to identify if this is a comma-separated list of multiple times
-  // vs a single time with comma as separator (like "7,15 PM")
+  // First normalize spaces around colons, commas, and dots BEFORE pattern matching
+  // This ensures "10 :00 AM" becomes "10:00 AM" before we try to match patterns
+  time = time.replace(/\s*[:,.]\s*/g, ':');
   
-  // Pattern to match complete time format: digits, optional colon/comma/dot, digits, space, AM/PM
-  const completeTimePattern = /\d{1,2}[.:,]?\d{0,2}\s*(AM|PM)/gi;
+  // Pattern to match complete time format: digits, colon, digits, space, AM/PM
+  const completeTimePattern = /\d{1,2}:\d{0,2}\s*(AM|PM)/gi;
   const timeMatches = time.match(completeTimePattern) || [];
   
   if (timeMatches.length > 1) {
@@ -151,17 +152,25 @@ export function normalizeTimeString(timeStr: string): string {
     // Single complete time found
     time = timeMatches[0];
   } else {
-    // No complete time pattern found, but maybe it's a malformed time
-    // Check if it contains AM/PM somewhere
-    const ampmMatch = time.match(/(AM|PM)/i);
-    if (ampmMatch) {
-      // Find the part with AM/PM and try to extract a reasonable time
-      const ampmIndex = time.indexOf(ampmMatch[0]);
-      // Look backward for numbers that could be the time
-      const beforeAmPm = time.substring(0, ampmIndex).trim();
-      const numbersBeforeAmPm = beforeAmPm.match(/[\d,.:]+$/);
-      if (numbersBeforeAmPm) {
-        time = numbersBeforeAmPm[0] + ' ' + ampmMatch[0];
+    // Try a broader pattern that includes malformed times
+    const broadTimePattern = /\d{1,2}[.:,]?\d{0,2}\s*(AM|PM)/gi;
+    const broadMatches = time.match(broadTimePattern) || [];
+    
+    if (broadMatches.length > 0) {
+      time = broadMatches[0];
+    } else {
+      // No complete time pattern found, but maybe it's a malformed time
+      // Check if it contains AM/PM somewhere
+      const ampmMatch = time.match(/(AM|PM)/i);
+      if (ampmMatch) {
+        // Find the part with AM/PM and try to extract a reasonable time
+        const ampmIndex = time.indexOf(ampmMatch[0]);
+        // Look backward for numbers that could be the time
+        const beforeAmPm = time.substring(0, ampmIndex).trim();
+        const numbersBeforeAmPm = beforeAmPm.match(/[\d:,.]+$/);
+        if (numbersBeforeAmPm) {
+          time = numbersBeforeAmPm[0] + ' ' + ampmMatch[0];
+        }
       }
     }
   }
@@ -172,6 +181,9 @@ export function normalizeTimeString(timeStr: string): string {
   
   // Replace fullstops with colons in time strings (e.g., "7.15" -> "7:15")
   time = time.replace(/\./g, ':');
+  
+  // Remove extra spaces around colons (this should already be done, but just in case)
+  time = time.replace(/\s*:\s*/g, ':');
   
   // Ensure AM/PM is always preceded by a space
   time = time.replace(/(\d)(AM|PM)/gi, '$1 $2');

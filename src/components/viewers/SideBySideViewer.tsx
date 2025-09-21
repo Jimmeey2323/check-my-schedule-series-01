@@ -409,8 +409,12 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
                 <TableHead className="bg-gray-700 text-white">Day</TableHead>
-                <TableHead className="bg-gray-700 text-white">Time</TableHead>
-                <TableHead className="bg-gray-700 text-white">Class</TableHead>
+                <TableHead className="bg-blue-600 text-white">CSV Class</TableHead>
+                <TableHead className="bg-red-600 text-white">PDF Class</TableHead>
+                <TableHead className="bg-blue-600 text-white">CSV Time</TableHead>
+                <TableHead className="bg-red-600 text-white">PDF Time</TableHead>
+                <TableHead className="bg-blue-600 text-white">CSV Location</TableHead>
+                <TableHead className="bg-red-600 text-white">PDF Location</TableHead>
                 <TableHead className="bg-blue-600 text-white">CSV Trainer</TableHead>
                 <TableHead className="bg-red-600 text-white">PDF Trainer</TableHead>
                 <TableHead className="bg-gray-700 text-white">Status</TableHead>
@@ -433,8 +437,12 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                 return (
                   <TableRow key={`compact-${idx}`} className="hover:bg-gray-50">
                     <TableCell>{csvItem.day}</TableCell>
-                    <TableCell>{csvItem.time}</TableCell>
-                    <TableCell>{csvItem.className}</TableCell>
+                    <TableCell className="bg-blue-50">{csvItem.className}</TableCell>
+                    <TableCell className="bg-red-50">{matchingPdfItem?.className || '-'}</TableCell>
+                    <TableCell className="bg-blue-50">{csvItem.time}</TableCell>
+                    <TableCell className="bg-red-50">{matchingPdfItem?.time || '-'}</TableCell>
+                    <TableCell className="bg-blue-50">{csvItem.location}</TableCell>
+                    <TableCell className="bg-red-50">{matchingPdfItem?.location || '-'}</TableCell>
                     <TableCell className="bg-blue-50">{csvItem.trainer1}</TableCell>
                     <TableCell className="bg-red-50">{matchingPdfItem?.trainer || '-'}</TableCell>
                     <TableCell className={statusColor}>{status}</TableCell>
@@ -453,8 +461,12 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                 .map((pdfItem, idx) => (
                   <TableRow key={`pdf-only-${idx}`} className="hover:bg-gray-50">
                     <TableCell>{pdfItem.day}</TableCell>
-                    <TableCell>{pdfItem.time}</TableCell>
-                    <TableCell>{pdfItem.className}</TableCell>
+                    <TableCell className="bg-blue-50">-</TableCell>
+                    <TableCell className="bg-red-50">{pdfItem.className}</TableCell>
+                    <TableCell className="bg-blue-50">-</TableCell>
+                    <TableCell className="bg-red-50">{pdfItem.time}</TableCell>
+                    <TableCell className="bg-blue-50">-</TableCell>
+                    <TableCell className="bg-red-50">{pdfItem.location}</TableCell>
                     <TableCell className="bg-blue-50">-</TableCell>
                     <TableCell className="bg-red-50">{pdfItem.trainer}</TableCell>
                     <TableCell className="bg-red-100 text-red-800">Missing in CSV</TableCell>
@@ -464,7 +476,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
               
               {paginatedCsvData.length === 0 && paginatedPdfData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">No data matches your filters</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8">No data matches your filters</TableCell>
                 </TableRow>
               )}
             </TableBody>
