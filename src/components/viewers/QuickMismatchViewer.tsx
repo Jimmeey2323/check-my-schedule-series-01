@@ -36,6 +36,7 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
     timeMismatches: 0,
     locationMismatches: 0
   });
+  const [csvClassCount, setCsvClassCount] = useState(0);
 
   // Load saved filters
   useEffect(() => {
@@ -55,12 +56,12 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
       // Handle different time formats
       const cleanTime = timeString.trim().toLowerCase();
       
-      // Common time formats: "10:00 AM", "10:00", "10.00 AM", etc.
-      const timeMatch = cleanTime.match(/(\d{1,2})[:.:](\d{2})\s*(am|pm)?/i);
+      // Handle various time formats: "10:00 AM", "10:00", "10.00 AM", "10:00am", "10 AM", etc.
+      const timeMatch = cleanTime.match(/(\d{1,2})[:.:]?(\d{2})?\s*(am|pm)?/i);
       
       if (timeMatch) {
         let hour = parseInt(timeMatch[1]);
-        const minute = parseInt(timeMatch[2]);
+        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
         const period = timeMatch[3];
         
         if (period) {
@@ -75,6 +76,19 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
         date.setHours(hour, minute, 0, 0);
         return date;
       }
+      
+      // Try to handle 24-hour format
+      const time24Match = cleanTime.match(/(\d{1,2})[:.:](\d{2})/);
+      if (time24Match) {
+        const hour = parseInt(time24Match[1]);
+        const minute = parseInt(time24Match[2]);
+        
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          const date = new Date();
+          date.setHours(hour, minute, 0, 0);
+          return date;
+        }
+      }
     } catch (error) {
       console.error('Error parsing time:', timeString, error);
     }
@@ -86,18 +100,20 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
     const t2 = parseTime(time2);
     
     if (!t1 || !t2) {
-      // If parsing fails, do string comparison
-      return time1.trim().toLowerCase() === time2.trim().toLowerCase();
+      // If parsing fails, do normalized string comparison
+      const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '');
+      return normalize(time1) === normalize(time2);
     }
     
-    // Allow 5 minute tolerance
-    return Math.abs(t1.getTime() - t2.getTime()) < 300000;
+    // Allow 15 minute tolerance for matching
+    return Math.abs(t1.getTime() - t2.getTime()) < 900000; // 15 minutes in milliseconds
   };
 
   // Calculate mismatches
   useEffect(() => {
     if (!csvData || !pdfData) {
       setMismatches([]);
+      setCsvClassCount(0);
       setStats({
         total: 0,
         trainerMismatches: 0,
@@ -113,17 +129,27 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
     Object.values(csvData).forEach(dayClasses => {
       csvFlat.push(...dayClasses);
     });
+    
+    setCsvClassCount(csvFlat.length);
 
     const detectedMismatches: MismatchItem[] = [];
+    const processedPdfClasses = new Set<string>();
 
     // Check CSV classes against PDF
     csvFlat.forEach(csvClass => {
-      // Find matching PDF class by day, time, and class name
-      const pdfMatch = pdfData.find(pdf => 
+      // Create a more flexible matching logic
+      const pdfMatches = pdfData.filter(pdf => 
         pdf.day === csvClass.day && 
-        pdf.className === csvClass.className &&
-        timesMatch(pdf.time, csvClass.time)
+        pdf.className === csvClass.className
       );
+
+      // Try to find exact time match first
+      let pdfMatch = pdfMatches.find(pdf => timesMatch(pdf.time, csvClass.time));
+      
+      // If no exact time match, try to find by class name and day only (for cases where time formats differ significantly)
+      if (!pdfMatch && pdfMatches.length === 1) {
+        pdfMatch = pdfMatches[0];
+      }
 
       if (!pdfMatch) {
         detectedMismatches.push({
@@ -136,8 +162,12 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
           severity: 'high'
         });
       } else {
+        // Mark this PDF class as processed
+        processedPdfClasses.add(pdfMatch.uniqueKey || `${pdfMatch.day}-${pdfMatch.time}-${pdfMatch.className}`);
+        
         // Check for trainer mismatch
-        if (pdfMatch.trainer !== csvClass.trainer1) {
+        if (pdfMatch.trainer && csvClass.trainer1 && 
+            pdfMatch.trainer.trim().toLowerCase() !== csvClass.trainer1.trim().toLowerCase()) {
           detectedMismatches.push({
             type: 'trainer_mismatch',
             day: csvClass.day,
@@ -150,7 +180,8 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
         }
 
         // Check for location mismatch
-        if (pdfMatch.location !== csvClass.location) {
+        if (pdfMatch.location && csvClass.location && 
+            pdfMatch.location.trim().toLowerCase() !== csvClass.location.trim().toLowerCase()) {
           detectedMismatches.push({
             type: 'location_mismatch',
             day: csvClass.day,
@@ -162,7 +193,7 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
           });
         }
 
-        // Check for time mismatch (only if they don't match exactly)
+        // Check for time mismatch (only if they don't match within tolerance)
         if (!timesMatch(pdfMatch.time, csvClass.time)) {
           detectedMismatches.push({
             type: 'time_mismatch',
@@ -177,24 +208,31 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
       }
     });
 
-    // Check for classes in PDF but not in CSV
+    // Check for classes in PDF but not in CSV (only unprocessed ones)
     pdfData.forEach(pdfClass => {
-      const csvMatch = csvFlat.find(csv => 
-        csv.day === pdfClass.day && 
-        csv.className === pdfClass.className &&
-        timesMatch(csv.time, pdfClass.time)
-      );
+      const pdfKey = pdfClass.uniqueKey || `${pdfClass.day}-${pdfClass.time}-${pdfClass.className}`;
+      
+      if (!processedPdfClasses.has(pdfKey)) {
+        // Try to find a CSV match more flexibly
+        const csvMatches = csvFlat.filter(csv => 
+          csv.day === pdfClass.day && 
+          csv.className === pdfClass.className
+        );
 
-      if (!csvMatch) {
-        detectedMismatches.push({
-          type: 'missing_in_csv',
-          day: pdfClass.day,
-          time: pdfClass.time,
-          className: pdfClass.className,
-          pdfTrainer: pdfClass.trainer,
-          pdfLocation: pdfClass.location,
-          severity: 'high'
-        });
+        const csvMatch = csvMatches.find(csv => timesMatch(csv.time, pdfClass.time)) ||
+                        (csvMatches.length === 1 ? csvMatches[0] : null);
+
+        if (!csvMatch) {
+          detectedMismatches.push({
+            type: 'missing_in_csv',
+            day: pdfClass.day,
+            time: pdfClass.time,
+            className: pdfClass.className,
+            pdfTrainer: pdfClass.trainer,
+            pdfLocation: pdfClass.location,
+            severity: 'high'
+          });
+        }
       }
     });
 
@@ -211,14 +249,25 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
     };
     setStats(statsData);
 
-    // Debug logging
+    // Enhanced debug logging
     console.log('QuickMismatchViewer Debug:', {
       csvDataKeys: csvData ? Object.keys(csvData) : 'null',
       csvClassCount: csvFlat.length,
       pdfClassCount: pdfData.length,
       detectedMismatches: detectedMismatches.length,
-      stats: statsData
+      stats: statsData,
+      sampleCsvClass: csvFlat[0],
+      samplePdfClass: pdfData[0],
+      mismatchTypes: detectedMismatches.reduce((acc, m) => {
+        acc[m.type] = (acc[m.type] || 0) + 1;
+        return acc;
+      }, {} as {[key: string]: number})
     });
+    
+    // Additional debug: show first few mismatches
+    if (detectedMismatches.length > 0) {
+      console.log('First 5 mismatches:', detectedMismatches.slice(0, 5));
+    }
   }, [csvData, pdfData]);
 
   // Filter mismatches
@@ -310,6 +359,14 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
       </div>
 
       {/* Statistics Cards */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h3 className="font-semibold text-blue-800 mb-2">📊 Mismatch Analysis Summary</h3>
+        <p className="text-sm text-blue-700">
+          Comparing <strong>{csvClassCount}</strong> CSV classes with <strong>{pdfData?.length || 0}</strong> PDF classes.
+          This analysis identifies discrepancies between your schedule data sources.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <Card className="text-center">
           <CardContent className="p-3">
@@ -320,31 +377,31 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
         <Card className="text-center">
           <CardContent className="p-3">
             <div className="text-2xl font-bold text-red-600">{stats.trainerMismatches}</div>
-            <div className="text-xs text-gray-600">Trainer</div>
+            <div className="text-xs text-gray-600">Trainer Conflicts</div>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="p-3">
             <div className="text-2xl font-bold text-orange-600">{stats.missingInPdf}</div>
-            <div className="text-xs text-gray-600">Missing PDF</div>
+            <div className="text-xs text-gray-600">CSV Only</div>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="p-3">
             <div className="text-2xl font-bold text-purple-600">{stats.missingInCsv}</div>
-            <div className="text-xs text-gray-600">Missing CSV</div>
+            <div className="text-xs text-gray-600">PDF Only</div>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="p-3">
             <div className="text-2xl font-bold text-blue-600">{stats.timeMismatches}</div>
-            <div className="text-xs text-gray-600">Time</div>
+            <div className="text-xs text-gray-600">Time Diff</div>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="p-3">
             <div className="text-2xl font-bold text-green-600">{stats.locationMismatches}</div>
-            <div className="text-xs text-gray-600">Location</div>
+            <div className="text-xs text-gray-600">Location Diff</div>
           </CardContent>
         </Card>
       </div>

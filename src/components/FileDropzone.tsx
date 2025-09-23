@@ -70,7 +70,9 @@ export function FileDropzone({
         </div>
       ) : (
         <>
-          <i className={`fas fa-${icon} text-6xl ${iconColor} mb-4`}></i>
+          <div className={`text-6xl ${iconColor} mb-4`}>
+            {icon === 'file-csv' ? '📊' : icon === 'file-pdf' ? '📋' : '📄'}
+          </div>
           <p className="text-lg font-medium text-gray-700 mb-2">{label}</p>
           <p className="text-gray-500">or click to select a file</p>
         </>

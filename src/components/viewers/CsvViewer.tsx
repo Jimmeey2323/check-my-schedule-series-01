@@ -154,32 +154,57 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
           />
 
           <div className="flex-grow overflow-hidden flex flex-col">
+            {/* Enhanced Header Section */}
             <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-white text-xl">📊</span>
                 </div>
                 <div className="flex-grow">
-                  <h3 className="font-semibold text-blue-900">Uploaded CSV Schedule Data</h3>
-                  <p className="text-sm text-blue-700">Interactive table view of your uploaded CSV file</p>
+                  <h3 className="font-semibold text-blue-900">CSV Schedule Data Table</h3>
+                  <p className="text-sm text-blue-700">Normalized and processed data from your uploaded CSV file</p>
                 </div>
-                {/* Summary counts */}
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="bg-white rounded-lg p-2 border border-blue-100">
-                    <div className="text-lg font-bold text-blue-600">{Object.keys(savedData).length}</div>
-                    <div className="text-xs text-blue-500">Days</div>
+              </div>
+              
+              {/* Data Processing Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="text-lg font-bold text-blue-600">{Object.keys(savedData).length}</div>
+                  <div className="text-xs text-blue-500">Days Available</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="text-lg font-bold text-blue-600">
+                    {Object.values(savedData).reduce((total, classes) => total + classes.length, 0)}
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-blue-100">
-                    <div className="text-lg font-bold text-blue-600">
-                      {Object.values(savedData).reduce((total, classes) => total + classes.length, 0)}
-                    </div>
-                    <div className="text-xs text-blue-500">Classes</div>
+                  <div className="text-xs text-blue-500">Total Classes</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="text-lg font-bold text-blue-600">
+                    {new Set(Object.values(savedData).flat().map(cls => cls.trainer1)).size}
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-blue-100">
-                    <div className="text-lg font-bold text-blue-600">
-                      {new Set(Object.values(savedData).flat().map(cls => cls.trainer1)).size}
-                    </div>
-                    <div className="text-xs text-blue-500">Trainers</div>
+                  <div className="text-xs text-blue-500">Unique Trainers</div>
+                </div>
+              </div>
+
+              {/* Normalization Info */}
+              <div className="bg-white rounded-lg p-3 border border-blue-100">
+                <h4 className="font-medium text-blue-800 mb-2">Data Normalization Applied:</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-600">✓</span>
+                    <span className="text-gray-600">Time format standardized</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-600">✓</span>
+                    <span className="text-gray-600">Class names mapped</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-600">✓</span>
+                    <span className="text-gray-600">Trainer names validated</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-600">✓</span>
+                    <span className="text-gray-600">Location names standardized</span>
                   </div>
                 </div>
               </div>
@@ -199,27 +224,44 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
               )}
             </div>
             
-            {/* Detailed Summary Section */}
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(savedData).map(([day, classes]) => (
-                <div key={day} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-800 mb-2">{day}</h4>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Classes:</span>
-                      <span className="font-medium">{classes.length}</span>
+            {/* Daily Summary Cards */}
+            <div className="mt-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Daily Breakdown</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(savedData).map(([day, classes]) => (
+                  <div key={day} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-semibold text-gray-800">{day}</h5>
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {classes.length} classes
+                      </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Trainers:</span>
-                      <span className="font-medium">{new Set(classes.map(c => c.trainer1)).size}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Locations:</span>
-                      <span className="font-medium">{new Set(classes.map(c => c.location)).size}</span>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Classes:</span>
+                        <span className="font-medium">{classes.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Trainers:</span>
+                        <span className="font-medium">{new Set(classes.map(c => c.trainer1)).size}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Locations:</span>
+                        <span className="font-medium">{new Set(classes.map(c => c.location)).size}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Time Span:</span>
+                        <span className="font-medium text-xs">
+                          {classes.length > 0 && classes[0].timeDate && classes[classes.length - 1].timeDate
+                            ? `${classes[0].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${classes[classes.length - 1].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
+                            : 'Varies'
+                          }
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
           

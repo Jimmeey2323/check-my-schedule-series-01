@@ -559,63 +559,182 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   const renderCalendarView = () => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const visibleDays = filters.day.length > 0 ? filters.day : days;
-    const hours = Array.from(Array(15).keys()).map(i => i + 6); // 6am to 8pm
+    
+    // Check if we have any data to display
+    if (!csvData && !pdfData) {
+      return (
+        <div className="mt-4 p-8 text-center">
+          <div className="text-gray-500 text-lg mb-4">📅 No schedule data available</div>
+          <p className="text-gray-400">Upload CSV or PDF data to view the calendar.</p>
+        </div>
+      );
+    }
+    
+    // Extract all unique hours from the data to create a dynamic time grid
+    const allTimes = new Set<number>();
+    
+    // Parse times from CSV data
+    if (filteredCsvData.length > 0) {
+      filteredCsvData.forEach(cls => {
+        if (cls.timeDate) {
+          allTimes.add(cls.timeDate.getHours());
+        }
+      });
+    }
+    
+    // Parse times from PDF data
+    if (filteredPdfData.length > 0) {
+      filteredPdfData.forEach(cls => {
+        const timeMatch = cls.time.match(/(\d{1,2})[:.:]?(\d{2})?\s*(am|pm)?/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1]);
+          const period = timeMatch[3];
+          
+          if (period) {
+            if (period.toLowerCase() === 'pm' && hour !== 12) {
+              hour += 12;
+            } else if (period.toLowerCase() === 'am' && hour === 12) {
+              hour = 0;
+            }
+          }
+          allTimes.add(hour);
+        }
+      });
+    }
+    
+    // Create hour range from data or use default
+    const hours = allTimes.size > 0 
+      ? Array.from(allTimes).sort((a, b) => a - b)
+      : Array.from(Array(15).keys()).map(i => i + 6); // Default 6am to 8pm
+    
+    // Helper function to check if a class belongs to a specific hour
+    const isClassInHour = (classTime: string | Date, targetHour: number): boolean => {
+      if (classTime instanceof Date) {
+        return classTime.getHours() === targetHour;
+      }
+      
+      // Parse string time
+      const timeMatch = classTime.match(/(\d{1,2})[:.:]?(\d{2})?\s*(am|pm)?/i);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const period = timeMatch[3];
+        
+        if (period) {
+          if (period.toLowerCase() === 'pm' && hour !== 12) {
+            hour += 12;
+          } else if (period.toLowerCase() === 'am' && hour === 12) {
+            hour = 0;
+          }
+        }
+        return hour === targetHour;
+      }
+      return false;
+    };
     
     return (
       <div className="mt-4 h-[calc(100vh-400px)] overflow-auto">
         <ScrollArea className="h-full">
           <div className="min-w-[800px]">
-            <div className="grid grid-cols-8 gap-1">
-              <div className="font-semibold p-2 bg-gray-200 sticky left-0 z-10">Time</div>
+            <div className="grid gap-1" style={{ gridTemplateColumns: `120px repeat(${visibleDays.length}, 1fr)` }}>
+              {/* Header row */}
+              <div className="font-semibold p-3 bg-gray-200 sticky left-0 z-10 border-r border-gray-300">
+                Time
+              </div>
               {visibleDays.map(day => (
-                <div key={`header-${day}`} className="font-semibold p-2 text-center bg-gray-200">
-                  {day}
+                <div key={`header-${day}`} className="font-semibold p-3 text-center bg-gray-200 border-r border-gray-300">
+                  <div className="text-sm">{day.substring(0, 3)}</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    {filteredCsvData.filter(c => c.day === day).length + 
+                     filteredPdfData.filter(c => c.day === day).length} classes
+                  </div>
                 </div>
               ))}
               
+              {/* Time slots */}
               {hours.map(hour => (
                 <React.Fragment key={`hour-${hour}`}>
-                  <div className="p-2 border-t border-gray-200 bg-gray-100 sticky left-0 z-10">
-                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour-12} PM` : `${hour} AM`}
+                  <div className="p-3 border-t border-gray-200 bg-gray-50 sticky left-0 z-10 text-sm font-medium border-r border-gray-300">
+                    {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour-12} PM` : `${hour} AM`}
                   </div>
                   
                   {visibleDays.map(day => {
-                    const hourStr = hour === 12 ? '12:00 PM' : hour > 12 ? `${hour-12}:00 PM` : `${hour}:00 AM`;
-                    const csvClasses = filteredCsvData.filter(c => 
-                      c.day === day && c.time.startsWith(hourStr.replace(':00', ':'))
-                    );
-                    const pdfClasses = filteredPdfData.filter(c => 
-                      c.day === day && c.time.startsWith(hourStr.replace(':00', ':'))
-                    );
+                    try {
+                      // Get classes for this day and hour
+                      const csvClasses = filteredCsvData.filter(c => 
+                        c && c.day === day && isClassInHour(c.timeDate || c.time, hour)
+                      );
+                      const pdfClasses = filteredPdfData.filter(c => 
+                        c && c.day === day && isClassInHour(c.time, hour)
+                      );
                     
-                    return (
-                      <div key={`cell-${day}-${hour}`} className="border-t border-gray-200 p-1 min-h-[80px] relative">
-                        {csvClasses.map((cls, i) => (
-                          <div key={`csv-${i}`} className="mb-1 p-1 text-xs bg-blue-100 rounded">
-                            <div className="font-bold">{cls.className}</div>
-                            <div>{cls.time} - {cls.trainer1}</div>
-                          </div>
-                        ))}
-                        
-                        {pdfClasses.filter(pdf => 
-                          !csvClasses.some(csv => 
-                            csv.time === pdf.time && 
-                            csv.className === pdf.className
-                          )
-                        ).map((cls, i) => (
-                          <div key={`pdf-${i}`} className="mb-1 p-1 text-xs bg-red-100 rounded">
-                            <div className="font-bold">{cls.className}</div>
-                            <div>{cls.time} - {cls.trainer}</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
+                      return (
+                        <div key={`cell-${day}-${hour}`} className="border-t border-gray-200 border-r border-gray-300 p-2 min-h-[100px] relative bg-white">
+                          {/* CSV Classes */}
+                          {csvClasses.map((cls, i) => (
+                            <div key={`csv-${i}`} className="mb-2 p-2 text-xs bg-blue-100 border border-blue-200 rounded shadow-sm">
+                              <div className="font-bold text-blue-800 mb-1">{cls.className}</div>
+                              <div className="text-blue-600">{cls.time}</div>
+                              <div className="text-blue-700 font-medium">{cls.trainer1}</div>
+                              <div className="text-blue-500 text-xs">{cls.location}</div>
+                              <div className="text-xs text-blue-400 mt-1">📊 CSV</div>
+                            </div>
+                          ))}
+                          
+                          {/* PDF Classes (only if not matching CSV) */}
+                          {pdfClasses.filter(pdf => {
+                            try {
+                              return !csvClasses.some(csv => 
+                                csv.className === pdf.className
+                              );
+                            } catch (error) {
+                              console.error('Error filtering PDF classes:', error);
+                              return true;
+                            }
+                          }).map((cls, i) => (
+                            <div key={`pdf-${i}`} className="mb-2 p-2 text-xs bg-red-100 border border-red-200 rounded shadow-sm">
+                              <div className="font-bold text-red-800 mb-1">{cls.className}</div>
+                              <div className="text-red-600">{cls.time}</div>
+                              <div className="text-red-700 font-medium">{cls.trainer}</div>
+                              <div className="text-red-500 text-xs">{cls.location}</div>
+                              <div className="text-xs text-red-400 mt-1">📋 PDF</div>
+                            </div>
+                          ))}
+                          
+                          {/* Empty state */}
+                          {csvClasses.length === 0 && pdfClasses.length === 0 && (
+                            <div className="text-gray-400 text-xs italic">No classes</div>
+                          )}
+                        </div>
+                      );
+                    } catch (error) {
+                      console.error('Error rendering calendar cell:', error);
+                      return (
+                        <div key={`cell-${day}-${hour}`} className="border-t border-gray-200 border-r border-gray-300 p-2 min-h-[100px] relative bg-white">
+                          <div className="text-red-400 text-xs italic">Error loading data</div>
+                        </div>
+                      );
+                    }
                   })}
                 </React.Fragment>
               ))}
             </div>
           </div>
         </ScrollArea>
+        
+        {/* Legend */}
+        <div className="mt-4 p-3 bg-gray-50 border rounded-lg">
+          <div className="text-sm font-medium mb-2">Legend:</div>
+          <div className="flex gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-100 border border-blue-200 rounded"></div>
+              <span>📊 CSV Data</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
+              <span>📋 PDF Data (unique to PDF)</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };

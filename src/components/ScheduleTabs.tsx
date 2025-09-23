@@ -84,24 +84,62 @@ export function ScheduleTabs({ classesByDay, filters }: ScheduleTabsProps) {
       </div>
       
       <div className="flex-grow bg-white rounded-lg shadow-sm border overflow-hidden">
+        {/* Table Header with Info */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-blue-900">Schedule for {activeDay}</h3>
+              <p className="text-sm text-blue-700">
+                Showing {filteredClasses.length} classes with normalized data
+              </p>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <div className="bg-white px-2 py-1 rounded border border-blue-200">
+                <span className="text-blue-600">✓</span> Normalized Values
+              </div>
+              <div className="bg-white px-2 py-1 rounded border border-green-200">
+                <span className="text-green-600">📊</span> CSV Data
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div className="h-full overflow-auto">
           <table className="w-full">
             <thead className="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Time</th>
                 <th className="px-4 py-3 text-left font-medium">Location</th>
-                <th className="px-4 py-3 text-left font-medium">Class</th>
+                <th className="px-4 py-3 text-left font-medium">Class Name</th>
                 <th className="px-4 py-3 text-left font-medium">Trainer</th>
-                <th className="px-4 py-3 text-left font-medium">Notes</th>
+                <th className="px-4 py-3 text-left font-medium">Additional Info</th>
               </tr>
             </thead>
             <tbody>
               {filteredClasses.length > 0 ? (
                 filteredClasses.map((cls, index) => (
                   <tr key={index} className="hover:bg-blue-50 border-b border-gray-100 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{cls.time}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm">{cls.location}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{cls.className}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <div className="font-medium text-gray-900">{cls.time}</div>
+                      {cls.timeRaw && cls.timeRaw !== cls.time && (
+                        <div className="text-xs text-gray-500 italic">
+                          Original: {cls.timeRaw}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <div className="font-medium text-gray-900">{cls.location}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="font-semibold text-gray-900">{cls.className}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {cls.uniqueKey && (
+                          <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                            ID: {cls.uniqueKey.substring(0, 8)}...
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-3">
                         <img
@@ -109,10 +147,33 @@ export function ScheduleTabs({ classesByDay, filters }: ScheduleTabsProps) {
                           alt={`Trainer ${cls.trainer1}`}
                           className="w-8 h-8 rounded-full border-2 border-blue-200 object-cover shadow-sm"
                         />
-                        <span className="font-medium">{cls.trainer1}</span>
+                        <div>
+                          <div className="font-medium text-gray-900">{cls.trainer1}</div>
+                          {cls.cover && cls.cover.trim() !== '' && cls.cover !== cls.trainer1 && (
+                            <div className="text-xs text-orange-600">
+                              Cover: {cls.cover}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{cls.notes || '-'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="space-y-1">
+                        {cls.notes && cls.notes.trim() !== '' && (
+                          <div className="text-gray-600">{cls.notes}</div>
+                        )}
+                        <div className="flex flex-wrap gap-1 text-xs">
+                          <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                            📊 CSV
+                          </span>
+                          {cls.timeDate && (
+                            <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                              ⏰ Parsed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
                   </tr>
                 ))
               ) : (
@@ -127,6 +188,29 @@ export function ScheduleTabs({ classesByDay, filters }: ScheduleTabsProps) {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* Legend/Help Section */}
+        <div className="border-t border-gray-200 bg-gray-50 p-3">
+          <div className="flex items-center justify-between text-xs text-gray-600">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <span className="text-blue-500">📊</span>
+                <span>CSV Source Data</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-green-500">✓</span>
+                <span>Normalized Values</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-purple-500">⏰</span>
+                <span>Time Parsed</span>
+              </div>
+            </div>
+            <div className="text-gray-500">
+              {filteredClasses.length} of {classesByDay[activeDay]?.length || 0} classes shown
+            </div>
+          </div>
         </div>
       </div>
     </div>
