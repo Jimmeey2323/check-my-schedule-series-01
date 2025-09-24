@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FilterSection } from '../FilterSection';
 import { passesFilters } from '@/utils/filterUtils';
-import { normalizeTrainerName } from '@/utils/csvParser';
 
 interface QuickMismatchViewerProps {
   csvData: {[day: string]: ClassData[]} | null;
@@ -138,22 +137,11 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
 
     // Check CSV classes against PDF
     csvFlat.forEach(csvClass => {
-      // Create a more flexible matching logic - first try exact match
-      let pdfMatches = pdfData.filter(pdf => 
+      // Create a more flexible matching logic
+      const pdfMatches = pdfData.filter(pdf => 
         pdf.day === csvClass.day && 
         pdf.className === csvClass.className
       );
-      
-      // If no exact class name match, try normalized comparison
-      if (pdfMatches.length === 0) {
-        const normalizeForComparison = (str: string) => str.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '');
-        const normalizedCsvClass = normalizeForComparison(csvClass.className);
-        
-        pdfMatches = pdfData.filter(pdf => 
-          pdf.day === csvClass.day && 
-          normalizeForComparison(pdf.className) === normalizedCsvClass
-        );
-      }
 
       // Try to find exact time match first
       let pdfMatch = pdfMatches.find(pdf => timesMatch(pdf.time, csvClass.time));
@@ -161,19 +149,6 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
       // If no exact time match, try to find by class name and day only (for cases where time formats differ significantly)
       if (!pdfMatch && pdfMatches.length === 1) {
         pdfMatch = pdfMatches[0];
-      } else if (!pdfMatch && pdfMatches.length > 1) {
-        // If multiple matches, prefer the one with closest time
-        pdfMatch = pdfMatches.reduce((closest, current) => {
-          if (!closest) return current;
-          const currentTime = parseTime(current.time);
-          const closestTime = parseTime(closest.time);
-          const csvTime = parseTime(csvClass.time);
-          if (!currentTime || !closestTime || !csvTime) return closest;
-          
-          const currentDiff = Math.abs(currentTime.getTime() - csvTime.getTime());
-          const closestDiff = Math.abs(closestTime.getTime() - csvTime.getTime());
-          return currentDiff < closestDiff ? current : closest;
-        });
       }
 
       if (!pdfMatch) {
@@ -190,23 +165,18 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
         // Mark this PDF class as processed
         processedPdfClasses.add(pdfMatch.uniqueKey || `${pdfMatch.day}-${pdfMatch.time}-${pdfMatch.className}`);
         
-        // Check for trainer mismatch using normalized names
-        if (pdfMatch.trainer && csvClass.trainer1) {
-          const normalizedPdfTrainer = normalizeTrainerName(pdfMatch.trainer);
-          const normalizedCsvTrainer = normalizeTrainerName(csvClass.trainer1);
-          
-          if (normalizedPdfTrainer && normalizedCsvTrainer && 
-              normalizedPdfTrainer !== normalizedCsvTrainer) {
-            detectedMismatches.push({
-              type: 'trainer_mismatch',
-              day: csvClass.day,
-              time: csvClass.time,
-              className: csvClass.className,
-              csvTrainer: csvClass.trainer1,
-              pdfTrainer: pdfMatch.trainer,
-              severity: 'high'
-            });
-          }
+        // Check for trainer mismatch
+        if (pdfMatch.trainer && csvClass.trainer1 && 
+            pdfMatch.trainer.trim().toLowerCase() !== csvClass.trainer1.trim().toLowerCase()) {
+          detectedMismatches.push({
+            type: 'trainer_mismatch',
+            day: csvClass.day,
+            time: csvClass.time,
+            className: csvClass.className,
+            csvTrainer: csvClass.trainer1,
+            pdfTrainer: pdfMatch.trainer,
+            severity: 'high'
+          });
         }
 
         // Check for location mismatch
@@ -243,22 +213,11 @@ export function QuickMismatchViewer({ csvData, pdfData }: QuickMismatchViewerPro
       const pdfKey = pdfClass.uniqueKey || `${pdfClass.day}-${pdfClass.time}-${pdfClass.className}`;
       
       if (!processedPdfClasses.has(pdfKey)) {
-        // Try to find a CSV match more flexibly - first exact match
-        let csvMatches = csvFlat.filter(csv => 
+        // Try to find a CSV match more flexibly
+        const csvMatches = csvFlat.filter(csv => 
           csv.day === pdfClass.day && 
           csv.className === pdfClass.className
         );
-        
-        // If no exact match, try normalized comparison
-        if (csvMatches.length === 0) {
-          const normalizeForComparison = (str: string) => str.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '');
-          const normalizedPdfClass = normalizeForComparison(pdfClass.className);
-          
-          csvMatches = csvFlat.filter(csv => 
-            csv.day === pdfClass.day && 
-            normalizeForComparison(csv.className) === normalizedPdfClass
-          );
-        }
 
         const csvMatch = csvMatches.find(csv => timesMatch(csv.time, pdfClass.time)) ||
                         (csvMatches.length === 1 ? csvMatches[0] : null);

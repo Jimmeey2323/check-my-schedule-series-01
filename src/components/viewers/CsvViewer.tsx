@@ -253,15 +253,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                         <span className="text-gray-600">Time Span:</span>
                         <span className="font-medium text-xs">
                           {classes.length > 0 && classes[0].timeDate && classes[classes.length - 1].timeDate
-                            ? (() => {
-                                try {
-                                  const firstTime = typeof classes[0].timeDate === 'string' ? new Date(classes[0].timeDate) : classes[0].timeDate;
-                                  const lastTime = typeof classes[classes.length - 1].timeDate === 'string' ? new Date(classes[classes.length - 1].timeDate) : classes[classes.length - 1].timeDate;
-                                  return `${firstTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${lastTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-                                } catch (e) {
-                                  return 'Varies';
-                                }
-                              })()
+                            ? `${classes[0].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${classes[classes.length - 1].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
                             : 'Varies'
                           }
                         </span>
