@@ -8,6 +8,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { toast } from '@/hooks/use-toast';
 import { FilterSection } from '../FilterSection';
 import { passesFilters } from '@/utils/filterUtils';
+import { normalizeClassName, normalizeTrainerName } from '@/utils/csvParser';
 import {
   Sheet,
   SheetContent,
@@ -115,7 +116,14 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
         
         const dayMatch = csvItem.day === pdfItem.day;
         const timeMatch = csvItem.time === pdfItem.time;
-        const classMatch = csvItem.className === pdfItem.className;
+        
+        // Enhanced class name matching with normalization fallback
+        let classMatch = csvItem.className === pdfItem.className;
+        if (!classMatch) {
+          const normalizedCsvClass = normalizeClassName(csvItem.className);
+          const normalizedPdfClass = normalizeClassName(pdfItem.className);
+          classMatch = normalizedCsvClass === normalizedPdfClass;
+        }
         
         // Check for match - day, time, and class name must match
         if (dayMatch && timeMatch && classMatch) {
@@ -123,7 +131,14 @@ export function ComparisonViewer({ csvData, pdfData }: ComparisonViewerProps) {
           matchedPdfKeys.add(pdfItem.uniqueKey);
           matchedCsvKeys.add(csvItem.uniqueKey);
           
-          const trainerMatch = csvItem.trainer1 === pdfItem.trainer;
+          // Enhanced trainer matching with normalization
+          let trainerMatch = csvItem.trainer1 === pdfItem.trainer;
+          if (!trainerMatch) {
+            const normalizedCsvTrainer = normalizeTrainerName(csvItem.trainer1);
+            const normalizedPdfTrainer = normalizeTrainerName(pdfItem.trainer);
+            trainerMatch = normalizedCsvTrainer === normalizedPdfTrainer;
+          }
+          
           const discrepancyCols = [];
           if (!trainerMatch) discrepancyCols.push('Trainer Name');
           
