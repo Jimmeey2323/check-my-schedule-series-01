@@ -252,10 +252,12 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Time Span:</span>
                         <span className="font-medium text-xs">
-                          {classes.length > 0 && classes[0].timeDate && classes[classes.length - 1].timeDate
-                            ? `${classes[0].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${classes[classes.length - 1].timeDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
-                            : 'Varies'
-                          }
+                          {(() => {
+                            const classesWithTime = classes.filter(c => c.timeDate !== null);
+                            return classesWithTime.length > 0 
+                              ? `${classesWithTime[0].timeDate!.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${classesWithTime[classesWithTime.length - 1].timeDate!.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
+                              : 'Varies';
+                          })()}
                         </span>
                       </div>
                     </div>
