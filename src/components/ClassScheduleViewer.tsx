@@ -1,13 +1,15 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { TabGroup } from './TabGroup';
 import { CsvViewer } from './viewers/CsvViewer';
-import { PdfViewer } from './viewers/PdfViewer';
-import { ComparisonViewer } from './viewers/ComparisonViewer';
-import { SideBySideViewer } from './viewers/SideBySideViewer';
-import { QuickMismatchViewer } from './viewers/QuickMismatchViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
+
+// Lazy load PDF-related components since they use heavy libraries
+const PdfViewer = lazy(() => import('./viewers/PdfViewer').then(module => ({ default: module.PdfViewer })));
+const ComparisonViewer = lazy(() => import('./viewers/ComparisonViewer').then(module => ({ default: module.ComparisonViewer })));
+const SideBySideViewer = lazy(() => import('./viewers/SideBySideViewer').then(module => ({ default: module.SideBySideViewer })));
+const QuickMismatchViewer = lazy(() => import('./viewers/QuickMismatchViewer').then(module => ({ default: module.QuickMismatchViewer })));
 
 export function ClassScheduleViewer() {
   const [activeTab, setActiveTab] = useState('csv');
@@ -83,31 +85,39 @@ export function ClassScheduleViewer() {
         )}
         
         {activeTab === 'pdf' && (
-          <PdfViewer 
-            savedData={pdfData}
-            onDataUpdate={handlePdfDataUpdate}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center p-8">Loading PDF viewer...</div>}>
+            <PdfViewer 
+              savedData={pdfData}
+              onDataUpdate={handlePdfDataUpdate}
+            />
+          </Suspense>
         )}
         
         {activeTab === 'compare' && (
-          <ComparisonViewer 
-            csvData={csvData}
-            pdfData={pdfData}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center p-8">Loading comparison viewer...</div>}>
+            <ComparisonViewer 
+              csvData={csvData}
+              pdfData={pdfData}
+            />
+          </Suspense>
         )}
 
         {activeTab === 'side-by-side' && (
-          <SideBySideViewer
-            csvData={csvData}
-            pdfData={pdfData}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center p-8">Loading side-by-side viewer...</div>}>
+            <SideBySideViewer
+              csvData={csvData}
+              pdfData={pdfData}
+            />
+          </Suspense>
         )}
 
         {activeTab === 'quick-mismatch' && (
-          <QuickMismatchViewer
-            csvData={csvData}
-            pdfData={pdfData}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center p-8">Loading mismatch viewer...</div>}>
+            <QuickMismatchViewer
+              csvData={csvData}
+              pdfData={pdfData}
+            />
+          </Suspense>
         )}
       </div>
     </div>
