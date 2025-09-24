@@ -51,11 +51,11 @@ const classNameMappings: {[key: string]: string} = {
   'powercycle': 'Studio PowerCycle',
   'strength lab': 'Studio Strength Lab',
   'strength lab (full body)': 'Studio Strength Lab',
-  'strength (pull)': 'Studio Strength Lab',
-  'strength (push)': 'Studio Strength Lab',
-  'strength - fb': 'Studio Strength Lab',
-  'strength - pull': 'Studio Strength Lab',
-  'strength - push': 'Studio Strength Lab',
+  'strength (pull)': 'Studio Strength Lab (Pull)',
+  'strength (push)': 'Studio Strength Lab (Push)',
+  'strength - fb': 'Studio Strength Lab (Full Body)',
+  'strength - pull': 'Studio Strength Lab (Pull)',
+  'strength - push': 'Studio Strength Lab (Push)',
 
   // Express versions
   'cardio barre express': 'Studio Cardio Barre Express',

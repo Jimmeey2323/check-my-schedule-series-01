@@ -22,11 +22,11 @@ const knownClassesList = [
 // Class name mappings for normalization
 const classNameMappings: {[key: string]: string} = {
   // Strength Lab variations
-  'STRENGTH LAB (FULL BODY)': 'Studio Strength Lab',
-  'STRENGTH LAB (PULL)': 'Studio Strength Lab',
-  'STRENGTH LAB (PUSH)': 'Studio Strength Lab',
-  'STRENGTH (PULL)': 'Studio Strength Lab',
-  'STRENGTH (PUSH)': 'Studio Strength Lab',
+  'STRENGTH LAB (FULL BODY)': 'Studio Strength Lab (Full Body)',
+  'STRENGTH LAB (PULL)': 'Studio Strength Lab (Pull)',
+  'STRENGTH LAB (PUSH)': 'Studio Strength Lab (Push)',
+  'STRENGTH (PULL)': 'Studio Strength Lab (Pull)',
+  'STRENGTH (PUSH)': 'Studio Strength Lab (Push)',
   
   // Other class name variations
   'Barre 57': 'Studio Barre 57',
@@ -52,7 +52,7 @@ const classNameMappings: {[key: string]: string} = {
 
 // Normalized teacher names
 const normalizedTeacherNames = [
-  "Anisha Shah", "Atulan Purohit", "Janhavi Jain", "Karanvir Bhatia", 
+  "Anisha Shah", "Atulan Purohit", "Janhavi Jain", "Karanvir Bhatia", "Karan Bhatia", 
   "Mrigakshi Jaiswal", "Pranjali Jain", "Reshma Sharma", "Richard D'Costa", 
   "Rohan Dahima", "Upasna Paranjpe", "Karan Bhatia", "Saniya Jaiswal", 
   "Vivaran Dhasmana", "Nishanth Raj", "Cauveri Vikrant", "Kabir Varma", 
@@ -65,7 +65,8 @@ const normalizedTeacherNames = [
 // Teacher name mappings for normalization
 const teacherNameMappings: {[key: string]: string} = {
   "Nishant": "Nishanth Raj",
-  "Karan": "Karanvir Bhatia",
+  "Karanvir": "Karanvir Bhatia",
+  "Karan": "Karan Bhatia",
   "Vivaran": "Vivaran Dhasmana",
   "Kajol": "Kajol Kanchan",
   "Shruti": "Shruti Kulkarni",
