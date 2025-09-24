@@ -1,4 +1,3 @@
-
 import { PdfClassData } from '@/types/schedule';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
@@ -9,21 +8,116 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dis
 
 const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+// Normalized class names
 const knownClassesList = [
-  "Barre 57", "Cardio Barre", "Cardio Barre Plus", "Cardio Barre (Express)", 
-  "Foundations", "Mat 57", "Mat 57 (Express)", "Fit", "Back Body Blaze", 
-  "Back Body Blaze (Express)", "Sweat in 30", "Recovery", "Pre/Post Natal", 
-  "HIIT", "Amped Up!", "Trainer's Choice", "PowerCycle", "PowerCycle (Express)",
-  "Strength - FB", "Strength - Pull", "Strength - Push"
+  "Studio Hosted Class", "Studio FIT", "Studio Back Body Blaze", "Studio Barre 57", 
+  "Studio Mat 57", "Studio Trainer's Choice", "Studio Cardio Barre Express", 
+  "Studio Amped Up!", "Studio HIIT", "Studio Foundations", "Studio SWEAT In 30", 
+  "Studio Cardio Barre Plus", "Studio Barre 57 Express", "Studio Cardio Barre", 
+  "Studio Back Body Blaze Express", "Studio Recovery", "Studio Pre/Post Natal", 
+  "Studio Mat 57 Express", "Studio PowerCycle", "Studio PowerCycle Express", 
+  "Studio Strength Lab"
 ];
 
 // Class name mappings for normalization
 const classNameMappings: {[key: string]: string} = {
-  'STRENGTH LAB (FULL BODY)': 'Strength - FB',
-  'STRENGTH LAB (PULL)': 'Strength - Pull',
-  'STRENGTH LAB (PUSH)': 'Strength - Push',
-  'STRENGTH (PULL)': 'Strength - Pull',
-  'STRENGTH (PUSH)': 'Strength - Push'
+  // Strength Lab variations
+  'STRENGTH LAB (FULL BODY)': 'Studio Strength Lab',
+  'STRENGTH LAB (PULL)': 'Studio Strength Lab',
+  'STRENGTH LAB (PUSH)': 'Studio Strength Lab',
+  'STRENGTH (PULL)': 'Studio Strength Lab',
+  'STRENGTH (PUSH)': 'Studio Strength Lab',
+  
+  // Other class name variations
+  'Barre 57': 'Studio Barre 57',
+  'Cardio Barre': 'Studio Cardio Barre',
+  'Cardio Barre Plus': 'Studio Cardio Barre Plus',
+  'Cardio Barre (Express)': 'Studio Cardio Barre Express',
+  'Foundations': 'Studio Foundations',
+  'Mat 57': 'Studio Mat 57',
+  'Mat 57 (Express)': 'Studio Mat 57 Express',
+  'Fit': 'Studio FIT',
+  'Back Body Blaze': 'Studio Back Body Blaze',
+  'Back Body Blaze (Express)': 'Studio Back Body Blaze Express',
+  'Sweat in 30': 'Studio SWEAT In 30',
+  'Recovery': 'Studio Recovery',
+  'Pre/Post Natal': 'Studio Pre/Post Natal',
+  'HIIT': 'Studio HIIT',
+  'Amped Up!': 'Studio Amped Up!',
+  "Trainer's Choice": 'Studio Trainer\'s Choice',
+  'PowerCycle': 'Studio PowerCycle',
+  'PowerCycle (Express)': 'Studio PowerCycle Express',
+  'Hosted Class': 'Studio Hosted Class'
+};
+
+// Normalized teacher names
+const normalizedTeacherNames = [
+  "Anisha Shah", "Atulan Purohit", "Janhavi Jain", "Karanvir Bhatia", 
+  "Mrigakshi Jaiswal", "Pranjali Jain", "Reshma Sharma", "Richard D'Costa", 
+  "Rohan Dahima", "Upasna Paranjpe", "Karan Bhatia", "Saniya Jaiswal", 
+  "Vivaran Dhasmana", "Nishanth Raj", "Cauveri Vikrant", "Kabir Varma", 
+  "Simonelle De Vitre", "Simran Dutt", "Anmol Sharma", "Bret Saldanha", 
+  "Raunak Khemuka", "Kajol Kanchan", "Pushyank Nahar", "Shruti Kulkarni", 
+  "Vivaran Dhasmana", "Shruti Suresh", "Poojitha Bhaskar", "Siddhartha Kusuma", 
+  "Chaitanya Nahar", "Veena Narasimhan"
+];
+
+// Teacher name mappings for normalization
+const teacherNameMappings: {[key: string]: string} = {
+  "Nishant": "Nishanth Raj",
+  "Karan": "Karanvir Bhatia",
+  "Vivaran": "Vivaran Dhasmana",
+  "Kajol": "Kajol Kanchan",
+  "Shruti": "Shruti Kulkarni",
+  "Richard": "Richard D'Costa",
+  "Reshma": "Reshma Sharma",
+  "Pranjali": "Pranjali Jain",
+  "Mrigakshi": "Mrigakshi Jaiswal",
+  "Janhavi": "Janhavi Jain",
+  "Atulan": "Atulan Purohit",
+  "Anisha": "Anisha Shah",
+  "Upasna": "Upasna Paranjpe",
+  "Rohan": "Rohan Dahima",
+  "Saniya": "Saniya Jaiswal",
+  "Cauveri": "Cauveri Vikrant",
+  "Kabir": "Kabir Varma",
+  "Simonelle": "Simonelle De Vitre",
+  "Simran": "Simran Dutt",
+  "Anmol": "Anmol Sharma",
+  "Bret": "Bret Saldanha",
+  "Raunak": "Raunak Khemuka",
+  "Pushyank": "Pushyank Nahar",
+  "Poojitha": "Poojitha Bhaskar",
+  "Siddhartha": "Siddhartha Kusuma",
+  "Chaitanya": "Chaitanya Nahar",
+  "Veena": "Veena Narasimhan"
+};
+
+// Normalized locations
+const normalizedLocations = [
+  "Kwality House, Kemps Corner",
+  "Supreme HQ, Bandra",
+  "Kenkere House",
+  "South United Football Club",
+  "The Studio by Copper + Cloves",
+  "WeWork Galaxy",
+  "WeWork Prestige Central",
+  "Physique Outdoor Pop-up"
+];
+
+// Location mappings for normalization
+const locationMappings: {[key: string]: string} = {
+  "Kwality House": "Kwality House, Kemps Corner",
+  "Kemps Corner": "Kwality House, Kemps Corner",
+  "Supreme HQ": "Supreme HQ, Bandra",
+  "Bandra": "Supreme HQ, Bandra",
+  "Kenkere": "Kenkere House",
+  "South United": "South United Football Club",
+  "Football Club": "South United Football Club",
+  "Copper + Cloves": "The Studio by Copper + Cloves",
+  "WeWork Galaxy": "WeWork Galaxy",
+  "WeWork Prestige": "WeWork Prestige Central",
+  "Outdoor Pop-up": "Physique Outdoor Pop-up"
 };
 
 // Helper function to normalize time string
@@ -33,7 +127,6 @@ function normalizeTime(rawTime: string): string {
   let time = rawTime.trim();
   
   // First normalize spaces around colons, commas, and dots BEFORE pattern matching
-  // This ensures "10 :00 AM" becomes "10:00 AM" before we try to match patterns
   time = time.replace(/\s*[:,.]\s*/g, ':');
   
   // Pattern to match complete time format: digits, colon, digits, space, AM/PM
@@ -122,6 +215,66 @@ function matchClassName(text: string): string {
   }
   
   return text.trim();
+}
+
+// Helper function to normalize teacher name
+function normalizeTeacherName(name: string): string {
+  if (!name) return '';
+  
+  const trimmed = name.trim();
+  
+  // First check for exact mappings
+  for (const [key, value] of Object.entries(teacherNameMappings)) {
+    if (trimmed.toUpperCase() === key.toUpperCase()) {
+      return value;
+    }
+  }
+  
+  // Then use fuzzy matching for other names
+  const fuse = new Fuse(normalizedTeacherNames, { 
+    includeScore: true, 
+    threshold: 0.4, 
+    ignoreLocation: true, 
+    distance: 100 
+  });
+  
+  const result = fuse.search(trimmed);
+  
+  if (result.length > 0) {
+    return result[0].item;
+  }
+  
+  return trimmed;
+}
+
+// Helper function to normalize location
+function normalizeLocation(location: string): string {
+  if (!location) return '';
+  
+  const trimmed = location.trim();
+  
+  // First check for exact mappings
+  for (const [key, value] of Object.entries(locationMappings)) {
+    if (trimmed.toUpperCase() === key.toUpperCase()) {
+      return value;
+    }
+  }
+  
+  // Then use fuzzy matching for other locations
+  const fuse = new Fuse(normalizedLocations, { 
+    includeScore: true, 
+    threshold: 0.4, 
+    ignoreLocation: true, 
+    distance: 100 
+  });
+  
+  const result = fuse.search(trimmed);
+  
+  if (result.length > 0) {
+    return result[0].item;
+  }
+  
+  return trimmed;
 }
 
 // Helper function to check if a class name is valid (not a trainer name or invalid entry)
@@ -246,9 +399,8 @@ function extractClassesFromContent(content: string): { time: string; className: 
   
   while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
     let trainerName = classTrainerMatch[2].trim();
-    if (trainerName === "Nishant") {
-      trainerName = "Nishanth"; // Convert Nishant to Nishanth
-    }
+    // Normalize teacher name
+    trainerName = normalizeTeacherName(trainerName);
 
     classTrainers.push({
       className: matchClassName(classTrainerMatch[1].trim()),
@@ -268,9 +420,13 @@ function extractClassesFromContent(content: string): { time: string; className: 
   
   return classes;
 }
+
 export function parseScheduleFromPdfText(fullText: string, location: string): PdfClassData[] {
   const schedule: PdfClassData[] = [];
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  // Normalize the location
+  const normalizedLocation = normalizeLocation(location);
 
   // Find the first day in the OCR text
   const firstDayMatch = fullText.match(new RegExp(`\\b(${daysOfWeek.join("|")})\\b`, "i"));
@@ -316,7 +472,7 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         return;
       }
       
-      const uniqueKey = (day + time + className + trainer + location)
+      const uniqueKey = (day + time + className + trainer + normalizedLocation)
         .toLowerCase()
         .replace(/\s+/g, "");
 
@@ -325,7 +481,7 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         time,
         className,
         trainer,
-        location,
+        location: normalizedLocation,
         uniqueKey
       });
     });

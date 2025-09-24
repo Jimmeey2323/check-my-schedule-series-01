@@ -227,10 +227,10 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     });
 
     return (
-      <div className="flex gap-4 mt-4 h-[calc(100vh-400px)]">
+      <div className="flex gap-4 mt-4 flex-1 min-h-0">
         {/* CSV Table */}
-        <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold text-center">
+        <div className="flex-1 flex flex-col glass-card rounded-lg overflow-hidden animate-slideUp">
+          <div className="px-4 py-3 gradient-primary text-white font-semibold text-center">
             📊 CSV Schedule ({filteredCsvData.length} classes)
           </div>
           <div 
@@ -276,7 +276,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         </div>
         
         {/* PDF Table */}
-        <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="flex-1 flex flex-col glass-card rounded-lg overflow-hidden animate-slideUp">
           <div className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-center">
             📋 PDF Schedule ({filteredPdfData.length} classes)
           </div>
@@ -341,13 +341,15 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   
   const renderCardsView = () => {
     return (
-      <div className="flex flex-col md:flex-row gap-4 mt-4 h-[calc(100vh-400px)]">
+      <div className="flex flex-col md:flex-row gap-4 mt-4 flex-1 min-h-0">
         {/* CSV Cards */}
-        <div className="flex-1 h-full border rounded-md p-2 bg-blue-50 overflow-hidden">
-          <div className="p-2 font-semibold text-center mb-2">CSV Schedule ({filteredCsvData.length} classes)</div>
+        <div className="flex-1 flex flex-col glass-card rounded-md p-2 overflow-hidden animate-slideUp">
+          <div className="p-2 font-semibold text-center mb-2 text-gradient-primary">
+            CSV Schedule ({filteredCsvData.length} classes)
+          </div>
           <div 
             ref={csvScrollRef}
-            className="h-[calc(100%-3rem)] overflow-auto"
+            className="flex-1 overflow-auto"
             onScroll={handleCsvScroll}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
@@ -371,11 +373,13 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         </div>
         
         {/* PDF Cards */}
-        <div className="flex-1 h-full border rounded-md p-2 bg-red-50 overflow-hidden">
-          <div className="p-2 font-semibold text-center mb-2">PDF Schedule ({filteredPdfData.length} classes)</div>
+        <div className="flex-1 flex flex-col glass-card rounded-md p-2 overflow-hidden animate-slideUp">
+          <div className="p-2 font-semibold text-center mb-2 text-red-600">
+            PDF Schedule ({filteredPdfData.length} classes)
+          </div>
           <div 
             ref={pdfScrollRef}
-            className="h-[calc(100%-3rem)] overflow-auto"
+            className="flex-1 overflow-auto"
             onScroll={handlePdfScroll}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
@@ -403,8 +407,8 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   
   const renderCompactView = () => {
     return (
-      <div className="flex flex-col mt-4 h-[calc(100vh-400px)]">
-        <ScrollArea className="h-full">
+      <div className="flex flex-col mt-4 flex-1 min-h-0">
+        <ScrollArea className="flex-1">
           <Table>
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
@@ -491,7 +495,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     const visibleDays = filters.day.length > 0 ? filters.day : days;
     
     return (
-      <div className="mt-4 h-[calc(100vh-400px)] overflow-auto">
+      <div className="mt-4 flex-1 min-h-0 overflow-auto">
         <ScrollArea className="h-full">
           {visibleDays.map((day) => {
             const csvDayData = filteredCsvData.filter(item => item.day === day);
@@ -632,7 +636,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     };
     
     return (
-      <div className="mt-4 h-[calc(100vh-400px)] overflow-auto">
+      <div className="mt-4 flex-1 min-h-0 overflow-auto">
         <ScrollArea className="h-full">
           <div className="min-w-[800px]">
             <div className="grid gap-1" style={{ gridTemplateColumns: `120px repeat(${visibleDays.length}, 1fr)` }}>
@@ -741,7 +745,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-4">
+      <div className="flex-shrink-0">
         <FilterSection 
           data={csvData}
           filters={filters}
@@ -763,7 +767,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         
         {/* Only show pagination controls for non-table views */}
         {viewMode !== 'table' && (
-          <div className="flex justify-between items-center mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="flex justify-between items-center mt-4 p-3 glass-card rounded-lg animate-fadeIn">
             <div className="flex items-center gap-4">
               <div>
                 <label htmlFor="perPage" className="mr-2 text-sm font-medium">Items per page:</label>
@@ -771,7 +775,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                   id="perPage"
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                  className="border rounded px-2 py-1 text-sm bg-white"
+                  className="border rounded px-2 py-1 text-sm input-glass"
                 >
                   <option value="5">5</option>
                   <option value="10">10</option>
@@ -795,20 +799,23 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         
         {/* Show summary for table view */}
         {viewMode === 'table' && (
-          <div className="flex justify-end mt-4 p-3 bg-gradient-to-r from-blue-50 to-red-50 rounded-lg border">
-            <div className="text-sm font-medium text-gray-700">
-              📊 CSV: <span className="text-blue-600">{filteredCsvData.length}</span> classes | 
-              📋 PDF: <span className="text-red-600">{filteredPdfData.length}</span> classes
+          <div className="flex justify-end mt-4 p-3 glass-card rounded-lg animate-fadeIn">
+            <div className="text-sm font-medium text-foreground">
+              📊 CSV: <span className="text-blue-600 font-semibold">{filteredCsvData.length}</span> classes | 
+              📋 PDF: <span className="text-red-600 font-semibold">{filteredPdfData.length}</span> classes
             </div>
           </div>
         )}
       </div>
       
-      {viewMode === 'table' && renderTableView()}
-      {viewMode === 'cards' && renderCardsView()}
-      {viewMode === 'compact' && renderCompactView()}
-      {viewMode === 'detailed' && renderDetailedView()}
-      {viewMode === 'calendar' && renderCalendarView()}
+      {/* Main content area - this will expand to fill available space */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {viewMode === 'table' && renderTableView()}
+        {viewMode === 'cards' && renderCardsView()}
+        {viewMode === 'compact' && renderCompactView()}
+        {viewMode === 'detailed' && renderDetailedView()}
+        {viewMode === 'calendar' && renderCalendarView()}
+      </div>
       
       {/* Only show pagination for non-table views that use pagination */}
       {viewMode !== 'table' && totalPages > 1 && (
