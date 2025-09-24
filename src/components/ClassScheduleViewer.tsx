@@ -19,7 +19,16 @@ export function ClassScheduleViewer() {
     try {
       const savedCsvData = localStorage.getItem('csvScheduleData');
       if (savedCsvData) {
-        setCsvData(JSON.parse(savedCsvData));
+        const parsedData = JSON.parse(savedCsvData);
+        // Reconstruct Date objects for timeDate fields
+        const reconstructedData: {[day: string]: ClassData[]} = {};
+        Object.entries(parsedData).forEach(([day, classes]) => {
+          reconstructedData[day] = (classes as ClassData[]).map(cls => ({
+            ...cls,
+            timeDate: cls.timeDate ? new Date(cls.timeDate) : null
+          }));
+        });
+        setCsvData(reconstructedData);
       }
       
       const savedPdfData = localStorage.getItem('pdfScheduleData');
