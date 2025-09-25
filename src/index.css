@@ -71,43 +71,64 @@
 }
 
 @layer components {
-  /* Glassmorphism effects */
+  /* Modern glass effects with white backgrounds */
   .glass {
-    @apply bg-white/80 dark:bg-black/80 backdrop-blur-lg backdrop-saturate-150 border border-white/20 dark:border-black/20;
+    @apply bg-white/95 backdrop-blur-xl border border-gray-200/80 shadow-lg;
   }
 
   .glass-card {
-    @apply bg-white/70 dark:bg-black/70 backdrop-blur-md backdrop-saturate-150 border border-white/20 dark:border-black/20 shadow-sm;
+    @apply bg-white backdrop-blur-md border border-gray-200/60 shadow-md;
   }
 
   .input-glass {
-    @apply bg-white/50 dark:bg-black/50 backdrop-blur-md border border-white/20 dark:border-black/20;
+    @apply bg-white/90 backdrop-blur-md border border-gray-300/70 shadow-sm;
   }
 
-  /* Brand gradients */
+  /* Dark high-contrast gradients */
   .gradient-primary {
-    @apply bg-gradient-to-r from-blue-500 to-teal-600;
+    @apply bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900;
+  }
+
+  .gradient-secondary {
+    @apply bg-gradient-to-r from-gray-900 via-purple-900 to-gray-900;
+  }
+
+  .gradient-accent {
+    @apply bg-gradient-to-r from-indigo-900 via-slate-900 to-teal-900;
   }
 
   .gradient-primary-light {
-    @apply bg-gradient-to-r from-blue-500/20 to-teal-500/20;
+    @apply bg-gradient-to-r from-slate-100 via-blue-50 to-slate-100;
   }
 
   .gradient-premium {
-    @apply bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600;
+    @apply bg-gradient-to-r from-black via-gray-900 to-black;
   }
 
   .gradient-background {
-    @apply bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900/80 dark:to-gray-900;
+    @apply bg-gradient-to-br from-gray-50 via-white to-blue-50/30;
   }
 
-  /* Text gradients */
+  /* High-contrast text gradients */
   .text-gradient-primary {
-    @apply bg-gradient-to-r from-blue-500 to-teal-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-secondary {
+    @apply bg-gradient-to-r from-gray-900 via-purple-900 to-gray-900 bg-clip-text text-transparent;
   }
 
   .text-gradient-premium {
-    @apply bg-gradient-to-r from-blue-400 via-purple-400 to-teal-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-black via-slate-800 to-black bg-clip-text text-transparent;
+  }
+
+  /* Neat borders */
+  .neat-border {
+    @apply border border-gray-300/80 shadow-sm;
+  }
+
+  .neat-border-dark {
+    @apply border-2 border-gray-800/90 shadow-lg;
   }
 }
 
@@ -133,9 +154,65 @@
     50% { transform: translateY(-5px); }
   }
 
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+    50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  }
+
   /* Animation classes */
   .animate-shimmer { animation: shimmer 2s linear infinite; }
   .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
   .animate-slideUp { animation: slideUp 0.3s ease-in-out; }
   .animate-float { animation: float 3s ease-in-out infinite; }
+  .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .animate-bounce-slow { animation: bounce 2s infinite; }
+
+  /* Custom scrollbar */
+  .fancy-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f8fafc;
+  }
+
+  .fancy-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .fancy-scrollbar::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 3px;
+  }
+
+  .fancy-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+    border-radius: 3px;
+  }
+
+  .fancy-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #94a3b8, #64748b);
+  }
+
+  /* High contrast focus states */
+  .focus-visible {
+    outline: 2px solid theme('colors.slate.900');
+    outline-offset: 2px;
+  }
+
+  /* Utility classes for enhanced UX */
+  .interactive-scale {
+    transition: transform 0.2s ease-in-out;
+  }
+
+  .interactive-scale:hover {
+    transform: scale(1.02);
+  }
+
+  .interactive-scale:active {
+    transform: scale(0.98);
+  }
 }

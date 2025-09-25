@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { ClassData, FilterState } from '@/types/schedule';
-import { Card, CardContent } from '@/components/ui/card';
 import { MultiSelectFilter } from './MultiSelectFilter';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Filter, Eye, Calendar, MapPin, Users, BookOpen } from 'lucide-react';
 
 const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -90,63 +89,97 @@ export function FilterSection({
   };
   
   return (
-    <Card className="mb-6">
-      <CardContent className="p-4">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Filters & View Options</h2>
-        <div className="flex flex-wrap gap-4">
+    <div className="p-6 animate-slideUp overflow-visible">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
+          <Filter className="h-4 w-4 text-white" />
+        </div>
+        <h2 className="text-lg font-bold text-gradient-primary">Filters & View Options</h2>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 pb-4 overflow-visible">
+        {/* Day Filter */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Calendar className="h-4 w-4 text-blue-500" />
+            <span>Days</span>
+          </div>
           <MultiSelectFilter 
             id="day-filter"
-            label="Filter by Day"
+            label="Select Days"
             options={uniqueDays}
             selected={filters.day}
             onChange={handleDayFilterChange}
           />
-          
+        </div>
+        
+        {/* Location Filter */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <MapPin className="h-4 w-4 text-teal-500" />
+            <span>Locations</span>
+          </div>
           <MultiSelectFilter 
             id="location-filter"
-            label="Filter by Location"
+            label="Select Locations"
             options={uniqueLocations}
             selected={filters.location}
             onChange={handleLocationFilterChange}
           />
-          
+        </div>
+        
+        {/* Trainer Filter */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Users className="h-4 w-4 text-purple-500" />
+            <span>Trainers</span>
+          </div>
           <MultiSelectFilter 
             id="trainer-filter"
-            label="Filter by Trainer"
+            label="Select Trainers"
             options={uniqueTrainers}
             selected={filters.trainer}
             onChange={handleTrainerFilterChange}
           />
-          
+        </div>
+        
+        {/* Class Filter */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <BookOpen className="h-4 w-4 text-emerald-500" />
+            <span>Classes</span>
+          </div>
           <MultiSelectFilter 
             id="class-filter"
-            label="Filter by Class"
+            label="Select Classes"
             options={uniqueClasses}
             selected={filters.className}
             onChange={handleClassFilterChange}
           />
-          
-          {!isComparisonView && onViewOptionChange && (
-            <div className="flex flex-col">
-              <label htmlFor="view-option" className="mb-1 font-medium text-gray-700 block">
-                View Option
-              </label>
-              <Select
-                value={viewOption}
-                onValueChange={(value) => onViewOptionChange(value as 'byDay' | 'fullWeek')}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select view" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="byDay">By Day (Tabs)</SelectItem>
-                  <SelectItem value="fullWeek">Full Week Schedule</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
-      </CardContent>
-    </Card>
+        
+        {/* View Option */}
+        {!isComparisonView && onViewOptionChange && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Eye className="h-4 w-4 text-orange-500" />
+              <span>View Mode</span>
+            </div>
+            <Select
+              value={viewOption}
+              onValueChange={(value) => onViewOptionChange(value as 'byDay' | 'fullWeek')}
+            >
+              <SelectTrigger className="input-glass hover:bg-white/20 transition-colors">
+                <SelectValue placeholder="Select view" />
+              </SelectTrigger>
+              <SelectContent className="glass-card">
+                <SelectItem value="byDay">📅 By Day</SelectItem>
+                <SelectItem value="fullWeek">📋 Full Week</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ export interface FilterState {
   location: string[];
   trainer: string[];
   className: string[];
+  searchQuery?: string;
 }
 
 export interface ComparisonResult {

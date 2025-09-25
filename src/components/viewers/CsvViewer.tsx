@@ -9,7 +9,11 @@ import { FilterSection } from '../FilterSection';
 import { ScheduleTabs } from '../ScheduleTabs';
 import { FullWeekSchedule } from '../FullWeekSchedule';
 import { SummarySection } from '../SummarySection';
+import { SmartSearchComponent } from '../SmartSearchComponent';
+import { AdvancedAnalyticsDashboard } from '../AdvancedAnalyticsDashboard';
+import { QuickActionToolbar } from '../QuickActionToolbar';
 import { extractScheduleData } from '@/utils/csvParser';
+import { Upload, Sparkles, Activity, Calendar, Users, MapPin, BarChart3, Search, Zap } from 'lucide-react';
 
 interface CsvViewerProps {
   savedData: {[day: string]: ClassData[]} | null;
@@ -19,8 +23,11 @@ interface CsvViewerProps {
 export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterState>({ day: [], location: [], trainer: [], className: [] });
+  const [filters, setFilters] = useState<FilterState>({ day: [], location: [], trainer: [], className: [], searchQuery: '' });
   const [viewOption, setViewOption] = useState<'byDay' | 'fullWeek'>('byDay');
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showSmartSearch, setShowSmartSearch] = useState(false);
+  const [activeView, setActiveView] = useState<'schedule' | 'analytics' | 'search'>('schedule');
   
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
@@ -39,14 +46,20 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
       const result = await extractScheduleData(text);
       
       // Reset filters when new data is loaded
-      setFilters({ day: [], location: [], trainer: [], className: [] });
+      setFilters({ day: [], location: [], trainer: [], className: [], searchQuery: '' });
       
       onDataUpdate(result);
+      
+      toast({
+        title: "✅ Success",
+        description: "CSV data processed successfully!",
+        variant: "default",
+      });
     } catch (err) {
       console.error('Error processing CSV:', err);
       setError(err instanceof Error ? err.message : 'Unknown error processing the CSV file');
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: err instanceof Error ? err.message : 'Unknown error processing the CSV file',
         variant: "destructive",
       });
@@ -55,6 +68,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
     }
   };
   
+  // Enhanced filter change handler with persistence
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
     // Store filters in localStorage for persistence across tabs
@@ -73,9 +87,9 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
     }
   }, []);
   
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {!savedData ? (
+  if (!savedData) {
+    return (
+      <div className="flex flex-col h-full animate-fadeIn">
         <FileDropzone 
           onFileUpload={handleFileUpload}
           accept=".csv,text/csv"
@@ -83,9 +97,35 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
           icon="file-csv"
           label="Drag & Drop your CSV file here"
         />
-      ) : (
-        <>
-          <div className="flex justify-between mb-4 gap-2 flex-wrap">
+      </div>
+    );
+  }
+
+  // Calculate metrics
+  const totalClasses = Object.values(savedData).reduce((total, classes) => total + classes.length, 0);
+  const uniqueTrainers = new Set(Object.values(savedData).flat().map(cls => cls.trainer1)).size;
+  const uniqueLocations = new Set(Object.values(savedData).flat().map(cls => cls.location)).size;
+  const daysCount = Object.keys(savedData).length;
+
+  return (
+    <div className="flex flex-col h-full space-y-6 animate-fadeIn gradient-background min-h-screen">
+      {/* Premium Header with Glass Effect */}
+      <div className="glass-card rounded-xl p-6 sticky top-0 z-10 shadow-xl border border-white/30">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-teal-600 flex items-center justify-center animate-float">
+              <Activity className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gradient-primary">CSV Schedule Data</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50"></div>
+                <span className="text-sm text-muted-foreground">Live data loaded</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3">
             <Button 
               variant="outline"
               onClick={() => {
@@ -98,8 +138,10 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                 };
                 fileInput.click();
               }}
-              className="text-sm"
+              className="glass border-white/30 hover:bg-white/20 hover:scale-105 transition-all duration-300"
+              disabled={isLoading}
             >
+              <Upload className="w-4 h-4 mr-2" />
               Upload New CSV
             </Button>
             
@@ -109,19 +151,18 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                 if (savedData) {
                   setIsLoading(true);
                   try {
-                    // Get the original CSV data from localStorage if available
                     const originalCsv = localStorage.getItem('originalCsvText');
                     if (originalCsv) {
                       const result = await extractScheduleData(originalCsv);
                       onDataUpdate(result);
                       toast({
-                        title: "Success",
+                        title: "✅ Success",
                         description: "Data reprocessed with latest class name mappings",
                         variant: "default",
                       });
                     } else {
                       toast({
-                        title: "Info",
+                        title: "ℹ️ Info",
                         description: "Please upload a new CSV file to apply latest class name mappings",
                         variant: "default",
                       });
@@ -129,7 +170,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                   } catch (err) {
                     console.error('Error reprocessing data:', err);
                     toast({
-                      title: "Error",
+                      title: "❌ Error",
                       description: "Failed to reprocess data",
                       variant: "destructive",
                     });
@@ -138,139 +179,172 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                   }
                 }
               }}
-              className="text-sm"
-              disabled={!savedData}
+              className="gradient-primary-light border-blue-300/30 text-blue-700 hover:bg-blue-100/50 hover:scale-105 transition-all duration-300"
+              disabled={!savedData || isLoading}
             >
+              <Sparkles className="w-4 h-4 mr-2" />
               Reprocess Data
             </Button>
           </div>
+        </div>
 
-          <FilterSection 
-            data={savedData}
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            viewOption={viewOption}
-            onViewOptionChange={setViewOption}
-          />
-
-          <div className="flex-grow overflow-hidden flex flex-col">
-            {/* Enhanced Header Section */}
-            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xl">📊</span>
-                </div>
-                <div className="flex-grow">
-                  <h3 className="font-semibold text-blue-900">CSV Schedule Data Table</h3>
-                  <p className="text-sm text-blue-700">Normalized and processed data from your uploaded CSV file</p>
-                </div>
-              </div>
-              
-              {/* Data Processing Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="text-lg font-bold text-blue-600">{Object.keys(savedData).length}</div>
-                  <div className="text-xs text-blue-500">Days Available</div>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="text-lg font-bold text-blue-600">
-                    {Object.values(savedData).reduce((total, classes) => total + classes.length, 0)}
-                  </div>
-                  <div className="text-xs text-blue-500">Total Classes</div>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <div className="text-lg font-bold text-blue-600">
-                    {new Set(Object.values(savedData).flat().map(cls => cls.trainer1)).size}
-                  </div>
-                  <div className="text-xs text-blue-500">Unique Trainers</div>
-                </div>
-              </div>
-
-              {/* Normalization Info */}
-              <div className="bg-white rounded-lg p-3 border border-blue-100">
-                <h4 className="font-medium text-blue-800 mb-2">Data Normalization Applied:</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-600">✓</span>
-                    <span className="text-gray-600">Time format standardized</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-600">✓</span>
-                    <span className="text-gray-600">Class names mapped</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-600">✓</span>
-                    <span className="text-gray-600">Trainer names validated</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-600">✓</span>
-                    <span className="text-gray-600">Location names standardized</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex-grow overflow-hidden">
-              {viewOption === 'byDay' ? (
-                <ScheduleTabs 
-                  classesByDay={savedData} 
-                  filters={filters}
-                />
-              ) : (
-                <FullWeekSchedule 
-                  classesByDay={savedData}
-                  filters={filters}
-                />
-              )}
-            </div>
-            
-            {/* Daily Summary Cards */}
-            <div className="mt-4">
-              <h4 className="font-semibold text-gray-800 mb-3">Daily Breakdown</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {Object.entries(savedData).map(([day, classes]) => (
-                  <div key={day} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <h5 className="font-semibold text-gray-800">{day}</h5>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                        {classes.length} classes
-                      </span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Classes:</span>
-                        <span className="font-medium">{classes.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Trainers:</span>
-                        <span className="font-medium">{new Set(classes.map(c => c.trainer1)).size}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Locations:</span>
-                        <span className="font-medium">{new Set(classes.map(c => c.location)).size}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Time Span:</span>
-                        <span className="font-medium text-xs">
-                          {(() => {
-                            const classesWithTime = classes.filter(c => c.timeDate !== null);
-                            return classesWithTime.length > 0 
-                              ? `${classesWithTime[0].timeDate!.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${classesWithTime[classesWithTime.length - 1].timeDate!.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
-                              : 'Varies';
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-8 w-8 text-blue-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{daysCount}</div>
+                <div className="text-xs text-muted-foreground">Days</div>
               </div>
             </div>
           </div>
           
-          <SummarySection 
-            classesByDay={savedData}
-            filters={filters}
-          />
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Activity className="h-8 w-8 text-teal-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{totalClasses}</div>
+                <div className="text-xs text-muted-foreground">Classes</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Users className="h-8 w-8 text-purple-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{uniqueTrainers}</div>
+                <div className="text-xs text-muted-foreground">Trainers</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <MapPin className="h-8 w-8 text-emerald-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{uniqueLocations}</div>
+                <div className="text-xs text-muted-foreground">Locations</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Action Toolbar */}
+      <QuickActionToolbar 
+        csvData={savedData}
+        onRefresh={async () => {
+          if (savedData) {
+            setIsLoading(true);
+            try {
+              const originalCsv = localStorage.getItem('originalCsvText');
+              if (originalCsv) {
+                const result = await extractScheduleData(originalCsv);
+                onDataUpdate(result);
+                toast({
+                  title: "✅ Success",
+                  description: "Data refreshed successfully",
+                  variant: "default",
+                });
+              }
+            } catch (err) {
+              console.error('Error refreshing data:', err);
+              toast({
+                title: "❌ Error",
+                description: "Failed to refresh data",
+                variant: "destructive",
+              });
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }}
+        onShowAnalytics={() => setActiveView('analytics')}
+        onShowConflicts={() => setActiveView('search')}
+      />
+
+      {/* View Navigation */}
+      <div className="glass-card neat-border rounded-xl p-4">
+        <div className="flex gap-2">
+          <Button
+            variant={activeView === 'schedule' ? "default" : "outline"}
+            onClick={() => setActiveView('schedule')}
+            className={activeView === 'schedule' ? "gradient-primary text-white" : "neat-border"}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Schedule View
+          </Button>
+          <Button
+            variant={activeView === 'search' ? "default" : "outline"}
+            onClick={() => setActiveView('search')}
+            className={activeView === 'search' ? "gradient-primary text-white" : "neat-border"}
+          >
+            <Search className="h-4 w-4 mr-2" />
+            Smart Search
+          </Button>
+          <Button
+            variant={activeView === 'analytics' ? "default" : "outline"}
+            onClick={() => setActiveView('analytics')}
+            className={activeView === 'analytics' ? "gradient-primary text-white" : "neat-border"}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </Button>
+        </div>
+      </div>
+
+      {/* Dynamic Content Based on Active View */}
+      {activeView === 'search' && (
+        <SmartSearchComponent 
+          data={savedData}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+        />
+      )}
+
+      {activeView === 'analytics' && (
+        <AdvancedAnalyticsDashboard 
+          data={savedData}
+        />
+      )}
+
+      {activeView === 'schedule' && (
+        <>
+          {/* Filter Section with Glass Effect */}
+          <div className="glass-card neat-border rounded-xl overflow-visible">
+            <FilterSection 
+              data={savedData}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              viewOption={viewOption}
+              onViewOptionChange={setViewOption}
+            />
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-grow glass-card neat-border rounded-xl p-6 animate-slideUp">
+            {viewOption === 'byDay' ? (
+              <ScheduleTabs 
+                classesByDay={savedData} 
+                filters={filters}
+              />
+            ) : (
+              <FullWeekSchedule 
+                classesByDay={savedData}
+                filters={filters}
+              />
+            )}
+          </div>
+
+          {/* Summary Section */}
+          <div className="glass-card neat-border rounded-xl">
+            <SummarySection 
+              classesByDay={savedData}
+              filters={filters}
+            />
+          </div>
         </>
       )}
     </div>
