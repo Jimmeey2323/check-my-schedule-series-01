@@ -9,6 +9,9 @@ import { extractTextFromPDF, parseScheduleFromPdfText } from '@/utils/pdfParser'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import * as pdfjsLib from 'pdfjs-dist';
 
+// Ensure PDF.js worker is configured
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
 interface PdfViewerProps {
   savedData: PdfClassData[] | null;
   onDataUpdate: (data: PdfClassData[]) => void;
