@@ -1,6 +1,8 @@
 
 import React from 'react';
-import { FileSpreadsheet, FileText, Search, Scale, FileX, Sparkles, Activity } from 'lucide-react';
+import { FileSpreadsheet, FileText, Search, Scale, FileX, Sparkles, Activity, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface Tab {
   id: string;
@@ -11,9 +13,10 @@ interface TabGroupProps {
   tabs: Tab[];
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  onClearAllData?: () => void;
 }
 
-export function TabGroup({ tabs, activeTab, onTabChange }: TabGroupProps) {
+export function TabGroup({ tabs, activeTab, onTabChange, onClearAllData }: TabGroupProps) {
   const getTabIcon = (tabId: string) => {
     switch (tabId) {
       case 'csv': return <FileSpreadsheet className="w-5 h-5" />;
@@ -34,6 +37,33 @@ export function TabGroup({ tabs, activeTab, onTabChange }: TabGroupProps) {
       case 'quick-mismatch': return 'text-red-500';
       default: return 'text-gray-500';
     }
+  };
+
+  const handleClearAllData = () => {
+    // Clear all localStorage data related to schedules
+    const keysToRemove = [
+      'csvScheduleData',
+      'pdfScheduleData',
+      'originalCsvText',
+      'csvFileName',
+      'csvUploadDate',
+      'originalPdfBlob',
+      'pdfFileName',
+      'pdfUploadDate',
+      'csvFilters'
+    ];
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Notify parent component to reset state
+    if (onClearAllData) {
+      onClearAllData();
+    }
+    
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('scheduleDataCleared'));
   };
 
   return (
@@ -69,11 +99,50 @@ export function TabGroup({ tabs, activeTab, onTabChange }: TabGroupProps) {
         </div>
         
         {/* Active Tab Indicator */}
-        <div className="flex items-center justify-center mt-3 pt-3 border-t border-white/20">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/20">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="w-4 h-4 text-blue-500" />
             <span>Navigate between data views</span>
           </div>
+          
+          {/* Clear All Data Button */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear All Data
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear All Schedule Data?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action will permanently delete all uploaded files and processed schedule data from all tabs. 
+                  This includes:
+                  <ul className="mt-2 ml-4 list-disc text-sm">
+                    <li>CSV schedule data and files</li>
+                    <li>PDF schedule data and files</li>
+                    <li>All comparison results</li>
+                    <li>Saved filters and settings</li>
+                  </ul>
+                  <strong className="text-red-600">This action cannot be undone.</strong>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={handleClearAllData}
+                >
+                  Clear All Data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>

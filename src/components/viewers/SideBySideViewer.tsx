@@ -43,6 +43,18 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
       }
     }
   }, []);
+
+  // Listen for clear data events and reset state
+  useEffect(() => {
+    const handleDataCleared = () => {
+      setFilters({ day: [], location: [], trainer: [], className: [] });
+      setCurrentPage(1);
+      setViewMode('table');
+    };
+
+    window.addEventListener('scheduleDataCleared', handleDataCleared);
+    return () => window.removeEventListener('scheduleDataCleared', handleDataCleared);
+  }, []);
   
   // Flatten CSV data on load
   useEffect(() => {

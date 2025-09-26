@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ClassData, FilterState } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -25,6 +25,20 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   const [filters, setFilters] = useState<FilterState>({ day: [], location: [], trainer: [], className: [] });
   const [viewOption, setViewOption] = useState<'byDay' | 'fullWeek'>('byDay');
   const [activeFeature, setActiveFeature] = useState<'schedule' | 'analytics' | 'search' | 'conflicts' | 'actions'>('schedule');
+  
+  // Listen for clear data events
+  useEffect(() => {
+    const handleDataCleared = () => {
+      // Reset all internal state
+      setError(null);
+      setFilters({ day: [], location: [], trainer: [], className: [] });
+      setViewOption('byDay');
+      setActiveFeature('schedule');
+    };
+
+    window.addEventListener('scheduleDataCleared', handleDataCleared);
+    return () => window.removeEventListener('scheduleDataCleared', handleDataCleared);
+  }, []);
   
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);

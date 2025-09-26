@@ -81,9 +81,30 @@ export function ClassScheduleViewer() {
     });
   };
 
+  const handleClearAllData = () => {
+    // Clear all state
+    setCsvData(null);
+    setPdfData(null);
+    
+    // Switch to first tab
+    setActiveTab('csv');
+    
+    // Show confirmation toast
+    toast({
+      title: "All Data Cleared",
+      description: "All schedule data and files have been permanently removed from all tabs.",
+      variant: "destructive",
+    });
+  };
+
   return (
     <div className="flex flex-col h-full">
-      <TabGroup tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabGroup 
+        tabs={tabs} 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        onClearAllData={handleClearAllData}
+      />
       
       <div className="flex-grow flex flex-col" style={{ minHeight: 0 }}>
         {activeTab === 'csv' && (

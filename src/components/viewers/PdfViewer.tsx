@@ -30,6 +30,17 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
     }
   }, []);
   
+  // Listen for clear data events
+  useEffect(() => {
+    const handleDataCleared = () => {
+      // Reset error state
+      setError(null);
+    };
+
+    window.addEventListener('scheduleDataCleared', handleDataCleared);
+    return () => window.removeEventListener('scheduleDataCleared', handleDataCleared);
+  }, []);
+  
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
     setError(null);

@@ -69,6 +69,22 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
     }
   }, []);
 
+  // Listen for clear data events and reset state
+  useEffect(() => {
+    const handleDataCleared = () => {
+      setCsvContent(null);
+      setCsvFileName(null);
+      setCsvUploadDate(null);
+      setPdfBlob(null);
+      setPdfFileName(null);
+      setPdfUploadDate(null);
+      setSelectedFile(null);
+    };
+
+    window.addEventListener('scheduleDataCleared', handleDataCleared);
+    return () => window.removeEventListener('scheduleDataCleared', handleDataCleared);
+  }, []);
+
   const downloadFile = (type: 'csv' | 'pdf') => {
     if (type === 'csv' && csvContent && csvFileName) {
       const blob = new Blob([csvContent], { type: 'text/csv' });
