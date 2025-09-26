@@ -6,6 +6,7 @@ import { PdfViewer } from './viewers/PdfViewer';
 import { ComparisonViewer } from './viewers/ComparisonViewer';
 import { SideBySideViewer } from './viewers/SideBySideViewer';
 import { QuickMismatchViewer } from './viewers/QuickMismatchViewer';
+import { OriginalFilesViewer } from './viewers/OriginalFilesViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 
@@ -58,6 +59,7 @@ export function ClassScheduleViewer() {
   const tabs = [
     { id: 'csv', label: 'CSV Schedule' },
     { id: 'pdf', label: 'PDF Schedule' },
+    { id: 'originals', label: 'Original Files' },
     { id: 'compare', label: 'Comparison' },
     { id: 'side-by-side', label: 'Side by Side' },
     { id: 'quick-mismatch', label: 'Quick Mismatch' }
@@ -96,6 +98,10 @@ export function ClassScheduleViewer() {
             savedData={pdfData}
             onDataUpdate={handlePdfDataUpdate}
           />
+        )}
+        
+        {activeTab === 'originals' && (
+          <OriginalFilesViewer />
         )}
         
         {activeTab === 'compare' && (

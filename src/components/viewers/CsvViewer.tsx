@@ -37,8 +37,10 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
       
       const text = await file.text();
       
-      // Save original CSV text for reprocessing
+      // Save original CSV text and metadata for reprocessing
       localStorage.setItem('originalCsvText', text);
+      localStorage.setItem('csvFileName', file.name);
+      localStorage.setItem('csvUploadDate', new Date().toLocaleDateString());
       
       const result = await extractScheduleData(text);
       

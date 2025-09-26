@@ -48,6 +48,14 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
         location = 'Kemps';
       }
       
+      // Save original PDF file for viewing later
+      const arrayBuffer = await file.arrayBuffer();
+      const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      
+      localStorage.setItem('originalPdfBlob', base64String);
+      localStorage.setItem('pdfFileName', file.name);
+      localStorage.setItem('pdfUploadDate', new Date().toLocaleDateString());
+      
       // Process PDF file
       const extractedText = await extractTextFromPDF(file);
       const parsedData = parseScheduleFromPdfText(extractedText, location);
