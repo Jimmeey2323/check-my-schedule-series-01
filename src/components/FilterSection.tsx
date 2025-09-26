@@ -89,7 +89,7 @@ export function FilterSection({
   };
   
   return (
-    <div className="p-6 animate-slideUp overflow-visible">
+    <div className="p-6 animate-slideUp">
       <div className="flex items-center gap-3 mb-6">
         <div className="h-8 w-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
           <Filter className="h-4 w-4 text-white" />
@@ -97,7 +97,7 @@ export function FilterSection({
         <h2 className="text-lg font-bold text-gradient-primary">Filters & View Options</h2>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 pb-4 overflow-visible">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Day Filter */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

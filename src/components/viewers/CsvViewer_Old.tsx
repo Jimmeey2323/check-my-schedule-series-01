@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { ClassData, FilterState } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,11 @@ import { SmartSearch } from '../SmartSearch';
 import { ConflictDetection } from '../ConflictDetection';
 import { extractScheduleData } from '@/utils/csvParser';
 import { Upload, Sparkles, Activity, Calendar, Users, MapPin, BarChart3, Search, AlertTriangle, Settings } from 'lucide-react';
+
+interface CsvViewerProps {
+  savedData: {[day: string]: ClassData[]} | null;
+  onDataUpdate: (data: {[day: string]: ClassData[]}) => void;
+}
 
 interface CsvViewerProps {
   savedData: {[day: string]: ClassData[]} | null;
@@ -136,7 +142,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
               <Search className="h-6 w-6 mx-auto mb-2 text-emerald-700" />
               <div className="text-sm font-medium text-emerald-700">Smart Search</div>
             </div>
-            <div className="text-center p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="text-center p-3 gradient-warning bg-orange-50 border border-orange-200 rounded-lg">
               <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-orange-700" />
               <div className="text-sm font-medium text-orange-700">Conflict Detection</div>
             </div>
@@ -167,23 +173,24 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   return (
     <div className="flex flex-col h-full space-y-6 animate-fadeIn gradient-background min-h-screen">
       {/* Premium Header with Glass Effect */}
-      <div className="glass-card rounded-xl p-6 sticky top-0 z-10 shadow-xl border-2 border-gray-200/60">
+      <div className="glass-card rounded-xl p-6 sticky top-0 z-10 shadow-xl border border-white/30">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <Activity className="h-6 w-6 text-white" />
+            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-teal-600 flex items-center justify-center animate-float">
+              <Activity className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gradient-primary">Enhanced CSV Viewer</h1>
+              <h1 className="text-xl font-bold text-gradient-primary">CSV Schedule Data</h1>
               <div className="flex items-center gap-2 mt-1">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50"></div>
-                <span className="text-sm text-gray-600">Live data • {totalClasses} classes loaded</span>
+                <span className="text-sm text-muted-foreground">Live data loaded</span>
               </div>
             </div>
           </div>
           
           <div className="flex flex-wrap gap-3">
             <Button 
+              variant="outline"
               onClick={() => {
                 const fileInput = document.createElement('input');
                 fileInput.type = 'file';
@@ -194,7 +201,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                 };
                 fileInput.click();
               }}
-              className="btn-secondary"
+              className="glass border-white/30 hover:bg-white/20 hover:scale-105 transition-all duration-300"
               disabled={isLoading}
             >
               <Upload className="w-4 h-4 mr-2" />
@@ -202,8 +209,40 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
             </Button>
             
             <Button 
-              onClick={handleRefresh}
-              className="btn-primary"
+              variant="outline"
+              onClick={async () => {
+                if (savedData) {
+                  setIsLoading(true);
+                  try {
+                    const originalCsv = localStorage.getItem('originalCsvText');
+                    if (originalCsv) {
+                      const result = await extractScheduleData(originalCsv);
+                      onDataUpdate(result);
+                      toast({
+                        title: "✅ Success",
+                        description: "Data reprocessed with latest class name mappings",
+                        variant: "default",
+                      });
+                    } else {
+                      toast({
+                        title: "ℹ️ Info",
+                        description: "Please upload a new CSV file to apply latest class name mappings",
+                        variant: "default",
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Error reprocessing data:', err);
+                    toast({
+                      title: "❌ Error",
+                      description: "Failed to reprocess data",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }
+              }}
+              className="gradient-primary-light border-blue-300/30 text-blue-700 hover:bg-blue-100/50 hover:scale-105 transition-all duration-300"
               disabled={!savedData || isLoading}
             >
               <Sparkles className="w-4 h-4 mr-2" />
@@ -211,164 +250,83 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
             </Button>
           </div>
         </div>
-        
-        {/* Enhanced Metrics Bar */}
-        <div className="flex flex-wrap gap-6 mt-6 pt-6 border-t-2 border-gray-200/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-success-light">
-              <Calendar className="h-5 w-5 text-emerald-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-primary">{totalClasses}</div>
-              <div className="text-xs text-gray-600">Total Classes</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-accent-light">
-              <Users className="h-5 w-5 text-indigo-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-secondary">{uniqueTrainers}</div>
-              <div className="text-xs text-gray-600">Trainers</div>
+
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-8 w-8 text-blue-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{daysCount}</div>
+                <div className="text-xs text-muted-foreground">Days</div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-primary-light">
-              <MapPin className="h-5 w-5 text-gray-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-accent">{uniqueLocations}</div>
-              <div className="text-xs text-gray-600">Locations</div>
+          
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Activity className="h-8 w-8 text-teal-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{totalClasses}</div>
+                <div className="text-xs text-muted-foreground">Classes</div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-orange-50 border border-orange-200">
-              <Activity className="h-5 w-5 text-orange-700" />
+          
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <Users className="h-8 w-8 text-purple-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{uniqueTrainers}</div>
+                <div className="text-xs text-muted-foreground">Trainers</div>
+              </div>
             </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-primary">{daysCount}</div>
-              <div className="text-xs text-gray-600">Active Days</div>
+          </div>
+          
+          <div className="glass-card p-4 rounded-lg hover:shadow-md transition-all duration-300">
+            <div className="flex items-center gap-3">
+              <MapPin className="h-8 w-8 text-emerald-500" />
+              <div>
+                <div className="text-2xl font-bold text-gradient-primary">{uniqueLocations}</div>
+                <div className="text-xs text-muted-foreground">Locations</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Feature Navigation Tabs */}
-      <div className="glass-card rounded-xl p-3 border-2 border-gray-200/60">
-        <div className="flex flex-wrap gap-3">
-          {[
-            { id: 'schedule', label: 'Schedule View', icon: Calendar, color: 'text-blue-700' },
-            { id: 'search', label: 'Smart Search', icon: Search, color: 'text-emerald-700' },
-            { id: 'conflicts', label: 'Conflict Detection', icon: AlertTriangle, color: 'text-orange-700' },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-purple-700' },
-            { id: 'actions', label: 'Quick Actions', icon: Settings, color: 'text-gray-700' }
-          ].map((feature, index) => (
-            <Button
-              key={feature.id}
-              onClick={() => setActiveFeature(feature.id as any)}
-              className={`
-                flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-105 border-2 animate-slideUp
-                ${activeFeature === feature.id 
-                  ? 'gradient-primary text-white shadow-lg border-gray-700' 
-                  : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                }
-              `}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <feature.icon className={`h-5 w-5 ${
-                activeFeature === feature.id ? 'text-white' : feature.color
-              }`} />
-              <span>{feature.label}</span>
-            </Button>
-          ))}
-        </div>
+      {/* Filter Section with Glass Effect */}
+      <div className="glass-card rounded-xl shadow-lg border border-white/30">
+        <FilterSection 
+          data={savedData}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          viewOption={viewOption}
+          onViewOptionChange={setViewOption}
+        />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 min-h-0">
-        {activeFeature === 'schedule' && (
-          <div className="space-y-6">
-            <FilterSection 
-              data={savedData}
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              onViewOptionChange={setViewOption}
-              viewOption={viewOption}
-            />
-
-            {viewOption === 'byDay' ? (
-              <ScheduleTabs 
-                classesByDay={savedData}
-                filters={filters}
-              />
-            ) : (
-              <FullWeekSchedule 
-                classesByDay={savedData}
-                filters={filters}
-              />
-            )}
-
-            <SummarySection 
-              classesByDay={savedData}
-              filters={filters}
-            />
-          </div>
-        )}
-
-        {activeFeature === 'search' && (
-          <SmartSearch 
+      <div className="flex-grow glass-card rounded-xl p-6 shadow-xl border border-white/30 animate-slideUp">
+        {viewOption === 'byDay' ? (
+          <ScheduleTabs 
+            classesByDay={savedData} 
+            filters={filters}
+          />
+        ) : (
+          <FullWeekSchedule 
             classesByDay={savedData}
-            onFiltersChange={handleFilterChange}
-            currentFilters={filters}
+            filters={filters}
           />
         )}
+      </div>
 
-        {activeFeature === 'conflicts' && (
-          <ConflictDetection classesByDay={savedData} />
-        )}
-
-        {activeFeature === 'analytics' && (
-          <div className="space-y-6">
-            <SummarySection 
-              classesByDay={savedData}
-              filters={filters}
-            />
-            <Card className="glass-card p-8 text-center border-2 border-gray-200/60">
-              <div className="h-16 w-16 rounded-xl gradient-accent flex items-center justify-center mx-auto mb-4">
-                <BarChart3 className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gradient-secondary mb-2">Advanced Analytics Dashboard</h3>
-              <p className="text-gray-600 mb-6">
-                Enhanced reporting with predictive insights, capacity planning, and performance metrics
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <div className="p-4 gradient-accent-light rounded-xl border-2 border-indigo-200/60">
-                  <div className="font-bold text-indigo-800">Utilization Reports</div>
-                  <div className="text-sm text-indigo-700 mt-1">Trainer and location usage analysis</div>
-                </div>
-                <div className="p-4 gradient-success-light rounded-xl border-2 border-emerald-200/60">
-                  <div className="font-bold text-emerald-800">Capacity Planning</div>
-                  <div className="text-sm text-emerald-700 mt-1">Optimal resource allocation insights</div>
-                </div>
-                <div className="p-4 gradient-primary-light rounded-xl border-2 border-gray-200/60">
-                  <div className="font-bold text-gray-800">Trend Analysis</div>
-                  <div className="text-sm text-gray-700 mt-1">Historical patterns and forecasting</div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {activeFeature === 'actions' && (
-          <QuickActionsPanel 
-            onExport={handleExport}
-            onRefresh={handleRefresh}
-            onAnalytics={handleAnalytics}
-            hasData={!!savedData}
-            dataQuality={95}
-            lastUpdated={new Date()}
-          />
-        )}
+      {/* Summary Section */}
+      <div className="glass-card rounded-xl shadow-lg border border-white/30">
+        <SummarySection 
+          classesByDay={savedData}
+          filters={filters}
+        />
       </div>
     </div>
   );
