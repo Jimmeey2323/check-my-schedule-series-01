@@ -39,6 +39,12 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
         throw new Error('Please upload a valid PDF file.');
       }
       
+      // Check file size to prevent memory issues
+      const maxSizeMB = 10;
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        throw new Error(`PDF file is too large. Please upload a file smaller than ${maxSizeMB}MB.`);
+      }
+      
       // Determine location from filename
       let location = 'Unknown';
       const fname = file.name.toLowerCase();
@@ -48,29 +54,50 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
         location = 'Kemps';
       }
       
-      // Save original PDF file for viewing later
-      const arrayBuffer = await file.arrayBuffer();
-      const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      // Save original PDF file for viewing later - with safety checks
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        // Only store if under reasonable size
+        if (arrayBuffer.byteLength < 5 * 1024 * 1024) { // 5MB limit for localStorage
+          const base64String = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+          
+          localStorage.setItem('originalPdfBlob', base64String);
+          localStorage.setItem('pdfFileName', file.name);
+          localStorage.setItem('pdfUploadDate', new Date().toLocaleDateString());
+        } else {
+          console.warn('PDF too large for local storage, skipping preview storage');
+        }
+      } catch (storageError) {
+        console.error('Error storing PDF in localStorage:', storageError);
+        // Continue processing even if storage fails
+      }
       
-      localStorage.setItem('originalPdfBlob', base64String);
-      localStorage.setItem('pdfFileName', file.name);
-      localStorage.setItem('pdfUploadDate', new Date().toLocaleDateString());
+      // Process PDF file with timeout protection
+      const extractionPromise = extractTextFromPDF(file);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('PDF processing timed out. The file may be too large or complex.')), 30000);
+      });
       
-      // Process PDF file
-      const extractedText = await extractTextFromPDF(file);
+      const extractedText = await Promise.race([extractionPromise, timeoutPromise]);
       const parsedData = parseScheduleFromPdfText(extractedText, location);
       
       if (parsedData.length === 0) {
-        throw new Error('No valid schedule data found in the PDF.');
+        throw new Error('No valid schedule data found in the PDF. Please check the file format.');
       }
       
       onDataUpdate(parsedData);
+      toast({
+        title: "Success",
+        description: `Successfully processed ${parsedData.length} classes from the PDF.`,
+        variant: "default",
+      });
     } catch (err) {
       console.error('Error processing PDF:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error processing the PDF file');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error processing the PDF file';
+      setError(errorMessage);
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : 'Unknown error processing the PDF file',
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

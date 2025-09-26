@@ -47,7 +47,15 @@ const classNameMappings: {[key: string]: string} = {
   "Trainer's Choice": 'Studio Trainer\'s Choice',
   'PowerCycle': 'Studio PowerCycle',
   'PowerCycle (Express)': 'Studio PowerCycle Express',
-  'Hosted Class': 'Studio Hosted Class'
+  'Hosted Class': 'Studio Hosted Class',
+  
+  // Special theme classes
+  'SLAY GLUTES GALORE': 'Studio Barre 57',
+  'BATTLE OF THE BANDS': 'Studio Barre 57',
+  'BATTLE OF THE BANDS BARRE 57': 'Studio Barre 57',
+  'SLAY GLUTES GALORE BARRE 57': 'Studio Barre 57',
+  'SLAY GLUTES': 'Studio Barre 57',
+  'GLUTES GALORE': 'Studio Barre 57'
 };
 
 // Normalized teacher names
@@ -324,60 +332,98 @@ function normalizeDay(dayRaw: string): string {
 
 // Extract text from PDF using PDF.js
 export async function extractTextFromPDF(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
-  const pdf = await loadingTask.promise;
-  
-  let fullText = "";
-  
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items.map(item => (item as any).str).join(" ");
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+    const pdf = await loadingTask.promise;
     
-    if (pageText.trim().length >= 20) {
-      fullText += pageText + "\n\n";
-    } else {
-      // Fall back to OCR if text extraction didn't yield enough content
-      const ocrText = await ocrPage(page);
-      fullText += ocrText + "\n\n";
+    let fullText = "";
+    const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages to prevent stack overflow
+    
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => (item as any).str).join(" ");
+        
+        if (pageText.trim().length >= 20) {
+          fullText += pageText + "\n\n";
+        } else {
+          // Skip OCR to avoid stack overflow issues
+          fullText += `[Page ${pageNum} - Limited text content]\n\n`;
+        }
+      } catch (pageError) {
+        console.error(`Error processing page ${pageNum}:`, pageError);
+        fullText += `[Error processing page ${pageNum}]\n\n`;
+      }
     }
-  }
-  
-  // If still no text, try OCR on all pages
-  if (!fullText.trim()) {
-    fullText = "";
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const ocrText = await ocrPage(page);
-      fullText += ocrText + "\n\n";
+    
+    if (pdf.numPages > maxPages) {
+      fullText += `[Note: Only processed first ${maxPages} pages to prevent memory issues]\n\n`;
     }
+    
+    return fullText.trim() || "No text content could be extracted from the PDF.";
+  } catch (error) {
+    console.error("PDF extraction error:", error);
+    throw new Error("Failed to extract text from PDF. The file may be too large or corrupted.");
   }
-  
-  return fullText.trim();
 }
 
 async function ocrPage(page: any): Promise<string> {
-    const viewport = page.getViewport({ scale: 2 });
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    if (!context) {
-        return "";
+    try {
+        // Use a smaller scale to reduce memory usage
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) {
+            return "";
+        }
+        
+        // Limit canvas size to prevent memory issues
+        const maxDimension = 2000;
+        let scale = 1;
+        if (viewport.width > maxDimension || viewport.height > maxDimension) {
+            scale = Math.min(maxDimension / viewport.width, maxDimension / viewport.height);
+        }
+        
+        canvas.width = viewport.width * scale;
+        canvas.height = viewport.height * scale;
+        
+        // Set a timeout to prevent long-running operations
+        const renderPromise = page.render({ 
+            canvasContext: context, 
+            viewport: new page.getViewport({ scale: 1.5 * scale })
+        }).promise;
+        
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('OCR render timeout')), 10000);
+        });
+        
+        await Promise.race([renderPromise, timeoutPromise]);
+        
+        // Use a timeout for OCR as well
+        const ocrPromise = Tesseract.recognize(
+            canvas,
+            "eng",
+            { logger: m => {}, errorHandler: err => console.error('Tesseract error:', err) }
+        );
+        
+        const ocrTimeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('OCR processing timeout')), 15000);
+        });
+        
+        const result = await Promise.race([ocrPromise, ocrTimeoutPromise]) as { data: { text: string } };
+        const text = result?.data?.text || '';
+        
+        // Clean up to prevent memory leaks
+        canvas.width = 1;
+        canvas.height = 1;
+        
+        return text;
+    } catch (error) {
+        console.error('OCR processing error:', error);
+        return '[OCR processing failed]';
     }
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-    const { data: { text } } = await Tesseract.recognize(
-        canvas,
-        "eng",
-        { logger: m => {} }
-    );
-
-    // Debug log for OCR
-    console.log(`OCR Output:`, text);
-
-    return text;
 }
 
 // Helper function to extract classes from content
@@ -394,7 +440,8 @@ function extractClassesFromContent(content: string): { time: string; className: 
   }
   
   // Match class-trainer pairs using refined regex
-  const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-]+?)\s*-\s*([A-Za-z]+)/g;
+  // Updated regex to better handle special class names
+  const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-\&]+?)\s*-\s*([A-Za-z]+)/g;
   let classTrainerMatch;
   const classTrainers: { className: string; trainer: string }[] = [];
   
@@ -402,9 +449,35 @@ function extractClassesFromContent(content: string): { time: string; className: 
     let trainerName = classTrainerMatch[2].trim();
     // Normalize teacher name
     trainerName = normalizeTeacherName(trainerName);
+    
+    // Get the raw class name before normalization for debugging
+    const rawClassName = classTrainerMatch[1].trim();
+    console.log(`Raw class name before normalization: "${rawClassName}"`);
+    
+    // Handle special theme classes that might be misidentified
+    let className = rawClassName;
+    if (rawClassName.includes("SLAY") || 
+        rawClassName.includes("GLUTES") || 
+        rawClassName.includes("GALORE") || 
+        rawClassName.includes("BATTLE OF THE BANDS")) {
+      console.log(`Special theme class detected: ${rawClassName}`);
+      // For these special classes, try to identify the base class type
+      if (rawClassName.includes("BARRE")) {
+        className = "Studio Barre 57";
+      } else if (rawClassName.includes("MAT")) {
+        className = "Studio Mat 57";
+      } else {
+        // Default to the normalized version
+        className = matchClassName(rawClassName);
+      }
+      console.log(`Mapped special class "${rawClassName}" to "${className}"`);
+    } else {
+      // Normal class name normalization
+      className = matchClassName(rawClassName);
+    }
 
     classTrainers.push({
-      className: matchClassName(classTrainerMatch[1].trim()),
+      className: className,
       trainer: trainerName
     });
   }
@@ -441,14 +514,65 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
   const text = fullText.slice(startIndex);
 
   // Split the text into blocks for each day
-  const dayBlocks = text.split(new RegExp(`\\b(?=${daysOfWeek.join("|")})\\b`, "i"));
-
-  dayBlocks.forEach(block => {
-    const dayMatch = block.match(new RegExp(`^(${daysOfWeek.join("|")})`, "i"));
-    if (!dayMatch) return;
+  const dayBlocks = text.split(new RegExp(`\\b(?=${daysOfWeek.join("|")}\\b)`, "i"));
+  
+  console.log('Day blocks found:', dayBlocks.length);
+  
+  // Store processed content by day for later use
+  const processedContentByDay: Record<string, { content: string, classes: any[] }> = {};
+  
+  // Process each day block
+  dayBlocks.forEach((block, blockIndex) => {
+    const dayMatch = block.match(new RegExp(`^(${daysOfWeek.join("|")}\\b)`, "i"));
+    if (!dayMatch) {
+      console.log(`Block ${blockIndex}: No day match found`);
+      return;
+    }
 
     const day = normalizeDay(dayMatch[1]);
-    const content = block.slice(dayMatch[0].length).trim();
+    let content = block.slice(dayMatch[0].length).trim();
+    
+    // Check specifically for Saturday content in Friday block
+    if (day.toLowerCase() === 'friday') {
+      // More aggressive search for Saturday content
+      const saturdayMatch = content.match(new RegExp(`\\b(Saturday|SATURDAY)\\b`, "i"));
+      if (saturdayMatch) {
+        console.log(`Found Saturday content within Friday block at position ${saturdayMatch.index}`);
+        // Split the content at Saturday
+        const saturdayContent = content.slice(saturdayMatch.index);
+        content = content.slice(0, saturdayMatch.index).trim();
+        
+        // Store Saturday content for later processing
+        const satDayMatch = saturdayContent.match(new RegExp(`^(Saturday|SATURDAY)\\b`, "i"));
+        if (satDayMatch) {
+          const satContent = saturdayContent.slice(satDayMatch[0].length).trim();
+          processedContentByDay['saturday'] = {
+            content: satContent,
+            classes: []
+          };
+          console.log(`Extracted Saturday content, length: ${satContent.length}`);
+          console.log(`Saturday content preview: "${satContent.substring(0, 100)}..."`);
+        }
+      }
+      
+      // Additional check for Saturday classes that might not have the Saturday header
+      // Look for time patterns that might indicate a new day
+      const timePatternMatch = content.match(/\n\s*\d{1,2}[:.]?\d{0,2}\s?(AM|PM)/i);
+      if (timePatternMatch && timePatternMatch.index && timePatternMatch.index > content.length / 2) {
+        console.log(`Possible day break detected at position ${timePatternMatch.index} based on time pattern`);
+        const possibleSatContent = content.slice(timePatternMatch.index).trim();
+        content = content.slice(0, timePatternMatch.index).trim();
+        
+        // Only process if we don't already have Saturday content and this looks substantial
+        if (!processedContentByDay['saturday'] && possibleSatContent.length > 50) {
+          console.log(`Treating content after time break as possible Saturday content`);
+          processedContentByDay['saturday'] = {
+            content: possibleSatContent,
+            classes: []
+          };
+        }
+      }
+    }
 
     // Debug log for each day
     console.log(`Processing day: ${day}, content length: ${content.length}`);
@@ -464,8 +588,16 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
     // Extract classes for the day
     const classes = extractClassesFromContent(cleanContent);
     console.log(`Found ${classes.length} classes for ${day}`);
-
-    // Add classes to the schedule
+    
+    // Store processed content and classes
+    processedContentByDay[day.toLowerCase()] = {
+      content: cleanContent,
+      classes: classes
+    };
+  });
+  
+  // Add all classes to the schedule
+  Object.entries(processedContentByDay).forEach(([day, { classes }]) => {
     classes.forEach(({ time, className, trainer }) => {
       // Filter out invalid class names
       if (!isValidClassName(className)) {
@@ -478,7 +610,7 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         .replace(/\s+/g, "");
 
       schedule.push({
-        day,
+        day: day.charAt(0).toUpperCase() + day.slice(1),
         time,
         className,
         trainer,
