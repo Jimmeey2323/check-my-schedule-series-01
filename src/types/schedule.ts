@@ -18,6 +18,7 @@ export interface PdfClassData {
   className: string;
   trainer: string;
   location: string;
+  theme?: string; // Optional theme field for special events
   uniqueKey: string;
 }
 

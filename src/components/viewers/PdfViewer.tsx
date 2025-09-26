@@ -168,6 +168,7 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
                       <TableHead>Location</TableHead>
                       <TableHead>Class</TableHead>
                       <TableHead>Trainer</TableHead>
+                      <TableHead>Theme</TableHead>
                       <TableHead>Unique Key</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -179,6 +180,9 @@ export function PdfViewer({ savedData, onDataUpdate }: PdfViewerProps) {
                         <TableCell>{cls.location}</TableCell>
                         <TableCell>{cls.className}</TableCell>
                         <TableCell>{cls.trainer}</TableCell>
+                        <TableCell className="text-purple-600 font-medium">
+                          {cls.theme || '-'}
+                        </TableCell>
                         <TableCell className="font-mono text-xs break-all">{cls.uniqueKey}</TableCell>
                       </TableRow>
                     ))}

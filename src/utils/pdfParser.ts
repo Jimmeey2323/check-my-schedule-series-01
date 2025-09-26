@@ -427,8 +427,8 @@ async function ocrPage(page: any): Promise<string> {
 }
 
 // Helper function to extract classes from content
-function extractClassesFromContent(content: string): { time: string; className: string; trainer: string }[] {
-  const classes: { time: string; className: string; trainer: string }[] = [];
+function extractClassesFromContent(content: string): { time: string; className: string; trainer: string; theme?: string }[] {
+  const classes: { time: string; className: string; trainer: string; theme?: string }[] = [];
   
   // Match time values
   const timeRegex = /(\d{1,2}[:.]?\d{0,2}\s?(AM|PM))/gi;
@@ -443,7 +443,7 @@ function extractClassesFromContent(content: string): { time: string; className: 
   // Updated regex to better handle special class names
   const classTrainerRegex = /([A-Za-z0-9\s\(\)\'\!\+\/\-\&]+?)\s*-\s*([A-Za-z]+)/g;
   let classTrainerMatch;
-  const classTrainers: { className: string; trainer: string }[] = [];
+  const classTrainers: { className: string; trainer: string; theme?: string }[] = [];
   
   while ((classTrainerMatch = classTrainerRegex.exec(content)) !== null) {
     let trainerName = classTrainerMatch[2].trim();
@@ -456,11 +456,40 @@ function extractClassesFromContent(content: string): { time: string; className: 
     
     // Handle special theme classes that might be misidentified
     let className = rawClassName;
+    let theme = '';
+    
+    // Extract theme information from special classes
     if (rawClassName.includes("SLAY") || 
         rawClassName.includes("GLUTES") || 
         rawClassName.includes("GALORE") || 
-        rawClassName.includes("BATTLE OF THE BANDS")) {
+        rawClassName.includes("BATTLE OF THE BANDS") ||
+        rawClassName.includes("DRAKE VS RIHANNA") ||
+        rawClassName.includes("BEAT THE TRAINER") ||
+        rawClassName.includes("7 YEARS STRONG") ||
+        /[A-Z]{3,}\s+(VS|&)\s+[A-Z]{3,}/i.test(rawClassName)) {
       console.log(`Special theme class detected: ${rawClassName}`);
+      
+      // Extract theme from the raw class name
+      if (rawClassName.includes("DRAKE VS RIHANNA")) {
+        theme = "DRAKE VS RIHANNA";
+      } else if (rawClassName.includes("BATTLE OF THE BANDS")) {
+        theme = "BATTLE OF THE BANDS";
+      } else if (rawClassName.includes("BEAT THE TRAINER")) {
+        theme = "BEAT THE TRAINER";
+      } else if (rawClassName.includes("7 YEARS STRONG")) {
+        theme = "7 YEARS STRONG";
+      } else if (rawClassName.includes("GLUTES") && rawClassName.includes("GALORE")) {
+        theme = "GLUTES GALORE";
+      } else if (rawClassName.includes("SLAY")) {
+        theme = "SLAY SUNDAY";
+      } else {
+        // Try to extract generic VS or & themes
+        const themeMatch = rawClassName.match(/([A-Z]{2,}\s+(?:VS|&)\s+[A-Z]{2,})/i);
+        if (themeMatch) {
+          theme = themeMatch[1];
+        }
+      }
+      
       // For these special classes, try to identify the base class type
       if (rawClassName.includes("BARRE")) {
         className = "Studio Barre 57";
@@ -470,7 +499,7 @@ function extractClassesFromContent(content: string): { time: string; className: 
         // Default to the normalized version
         className = matchClassName(rawClassName);
       }
-      console.log(`Mapped special class "${rawClassName}" to "${className}"`);
+      console.log(`Mapped special class "${rawClassName}" to "${className}" with theme "${theme}"`);
     } else {
       // Normal class name normalization
       className = matchClassName(rawClassName);
@@ -478,18 +507,25 @@ function extractClassesFromContent(content: string): { time: string; className: 
 
     classTrainers.push({
       className: className,
-      trainer: trainerName
+      trainer: trainerName,
+      theme: theme || undefined
     });
   }
   
   // Match times with class-trainer pairs
   const count = Math.min(times.length, classTrainers.length);
   for (let i = 0; i < count; i++) {
-    classes.push({
+    const classEntry: { time: string; className: string; trainer: string; theme?: string } = {
       time: times[i],
       className: classTrainers[i].className,
       trainer: classTrainers[i].trainer
-    });
+    };
+    
+    if (classTrainers[i].theme) {
+      classEntry.theme = classTrainers[i].theme;
+    }
+    
+    classes.push(classEntry);
   }
   
   return classes;
@@ -577,11 +613,10 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
     // Debug log for each day
     console.log(`Processing day: ${day}, content length: ${content.length}`);
 
-    // Clean up the content
+    // Clean up the content but preserve theme information
     let cleanContent = content.replace(/\s+/g, " ").trim();
+    // Don't remove theme names as they contain important information
     cleanContent = cleanContent
-      .replace(/7 YEARS STRONG/gi, "")
-      .replace(/BEAT THE TRAINER/gi, "")
       .replace(/SLOGAN.*?(\.|$)/gi, "")
       .trim();
 
@@ -598,7 +633,7 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
   
   // Add all classes to the schedule
   Object.entries(processedContentByDay).forEach(([day, { classes }]) => {
-    classes.forEach(({ time, className, trainer }) => {
+    classes.forEach(({ time, className, trainer, theme }) => {
       // Filter out invalid class names
       if (!isValidClassName(className)) {
         console.log(`Filtering out invalid class: ${className}`);
@@ -609,14 +644,21 @@ export function parseScheduleFromPdfText(fullText: string, location: string): Pd
         .toLowerCase()
         .replace(/\s+/g, "");
 
-      schedule.push({
+      const scheduleItem: PdfClassData = {
         day: day.charAt(0).toUpperCase() + day.slice(1),
         time,
         className,
         trainer,
         location: normalizedLocation,
         uniqueKey
-      });
+      };
+      
+      // Add theme if it exists
+      if (theme && theme.trim()) {
+        scheduleItem.theme = theme.trim();
+      }
+
+      schedule.push(scheduleItem);
     });
   });
 

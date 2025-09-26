@@ -433,6 +433,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                 <TableHead className="bg-red-600 text-white">PDF Location</TableHead>
                 <TableHead className="bg-blue-600 text-white">CSV Trainer</TableHead>
                 <TableHead className="bg-red-600 text-white">PDF Trainer</TableHead>
+                <TableHead className="bg-purple-600 text-white">PDF Theme</TableHead>
                 <TableHead className="bg-gray-700 text-white">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -461,6 +462,9 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                     <TableCell className="bg-red-50">{matchingPdfItem?.location || '-'}</TableCell>
                     <TableCell className="bg-blue-50">{csvItem.trainer1}</TableCell>
                     <TableCell className="bg-red-50">{matchingPdfItem?.trainer || '-'}</TableCell>
+                    <TableCell className="bg-purple-50 text-purple-700 font-medium">
+                      {matchingPdfItem?.theme || '-'}
+                    </TableCell>
                     <TableCell className={statusColor}>{status}</TableCell>
                   </TableRow>
                 );
@@ -485,6 +489,9 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
                     <TableCell className="bg-red-50">{pdfItem.location}</TableCell>
                     <TableCell className="bg-blue-50">-</TableCell>
                     <TableCell className="bg-red-50">{pdfItem.trainer}</TableCell>
+                    <TableCell className="bg-purple-50 text-purple-700 font-medium">
+                      {pdfItem.theme || '-'}
+                    </TableCell>
                     <TableCell className="bg-red-100 text-red-800">Missing in CSV</TableCell>
                   </TableRow>
                 ))
@@ -492,7 +499,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
               
               {paginatedCsvData.length === 0 && paginatedPdfData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">No data matches your filters</TableCell>
+                  <TableCell colSpan={11} className="text-center py-8">No data matches your filters</TableCell>
                 </TableRow>
               )}
             </TableBody>
