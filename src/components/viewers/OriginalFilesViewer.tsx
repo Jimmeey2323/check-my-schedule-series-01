@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PdfEditor } from '../PdfEditor';
+import { CsvEditor } from '../CsvEditor';
+import { toast } from '@/hooks/use-toast';
 import { 
   FileText, 
   Download, 
@@ -10,7 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  FileImage
+  FileImage,
+  Edit3
 } from 'lucide-react';
 
 interface OriginalFilesViewerProps {}
@@ -23,6 +27,8 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
   const [pdfUploadDate, setPdfUploadDate] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<'csv' | 'pdf' | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingCsv, setIsEditingCsv] = useState(false);
 
   useEffect(() => {
     // Load saved CSV content with safety checks
@@ -106,6 +112,63 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+  };
+
+  const editFile = (type: 'csv' | 'pdf') => {
+    if (type === 'pdf' && pdfBlob) {
+      setIsEditing(true);
+    } else if (type === 'csv' && csvContent) {
+      setIsEditingCsv(true);
+    } else {
+      toast({
+        title: "Edit Not Available",
+        description: type === 'csv' ? "No CSV file available to edit" : "No PDF file available to edit",
+        variant: "default",
+      });
+    }
+  };
+
+  const handleCsvSave = (modifiedCsv: string, fileName: string) => {
+    // Update the stored CSV with the modified version
+    localStorage.setItem('originalCsvText', modifiedCsv);
+    localStorage.setItem('csvFileName', fileName);
+    localStorage.setItem('csvUploadDate', new Date().toLocaleDateString());
+    
+    setCsvContent(modifiedCsv);
+    setCsvFileName(fileName);
+    setCsvUploadDate(new Date().toLocaleDateString());
+    setIsEditingCsv(false);
+    
+    toast({
+      title: "Success",
+      description: "CSV modifications saved successfully!",
+      variant: "default",
+    });
+  };
+
+  const handlePdfSave = (modifiedPdf: Blob, fileName: string) => {
+    // Update the stored PDF with the modified version
+    const reader = new FileReader();
+    reader.onload = () => {
+      const arrayBuffer = reader.result as ArrayBuffer;
+      const base64String = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      
+      localStorage.setItem('originalPdfBlob', base64String);
+      localStorage.setItem('pdfFileName', fileName);
+      localStorage.setItem('pdfUploadDate', new Date().toLocaleDateString());
+      
+      setPdfBlob(modifiedPdf);
+      setPdfFileName(fileName);
+      setPdfUploadDate(new Date().toLocaleDateString());
+      setIsEditing(false);
+      
+      toast({
+        title: "Success",
+        description: "PDF modifications saved successfully!",
+        variant: "default",
+      });
+    };
+    reader.readAsArrayBuffer(modifiedPdf);
   };
 
   const viewFile = (type: 'csv' | 'pdf') => {
@@ -298,6 +361,13 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
                     Preview
                   </Button>
                   <Button
+                    onClick={() => editFile('csv')}
+                    className="btn-accent flex-1"
+                  >
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
                     onClick={() => downloadFile('csv')}
                     className="btn-primary flex-1"
                   >
@@ -359,6 +429,13 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
                     Preview
                   </Button>
                   <Button
+                    onClick={() => editFile('pdf')}
+                    className="btn-accent flex-1"
+                  >
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
                     onClick={() => downloadFile('pdf')}
                     className="btn-primary flex-1"
                   >
@@ -409,6 +486,26 @@ export function OriginalFilesViewer({}: OriginalFilesViewerProps) {
           </div>
         </div>
       </Card>
+
+      {/* PDF Editor Modal */}
+      {isEditing && pdfBlob && pdfFileName && (
+        <PdfEditor
+          pdfBlob={pdfBlob}
+          fileName={pdfFileName}
+          onSave={handlePdfSave}
+          onClose={() => setIsEditing(false)}
+        />
+      )}
+
+      {/* CSV Editor Modal */}
+      {isEditingCsv && csvContent && csvFileName && (
+        <CsvEditor
+          csvContent={csvContent}
+          fileName={csvFileName}
+          onSave={handleCsvSave}
+          onClose={() => setIsEditingCsv(false)}
+        />
+      )}
     </div>
   );
 }
