@@ -7,6 +7,7 @@ import { ComparisonViewer } from './viewers/ComparisonViewer';
 import { SideBySideViewer } from './viewers/SideBySideViewer';
 import { QuickMismatchViewer } from './viewers/QuickMismatchViewer';
 import { OriginalFilesViewer } from './viewers/OriginalFilesViewer';
+import { RawOcsDataViewer } from './viewers/RawOcsDataViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 
@@ -59,6 +60,7 @@ export function ClassScheduleViewer() {
   const tabs = [
     { id: 'csv', label: 'CSV Schedule' },
     { id: 'pdf', label: 'PDF Schedule' },
+    { id: 'raw-ocs', label: 'Raw OCS Data' },
     { id: 'originals', label: 'Original Files' },
     { id: 'compare', label: 'Comparison' },
     { id: 'side-by-side', label: 'Side by Side' },
@@ -118,6 +120,13 @@ export function ClassScheduleViewer() {
           <PdfViewer 
             savedData={pdfData}
             onDataUpdate={handlePdfDataUpdate}
+          />
+        )}
+        
+        {activeTab === 'raw-ocs' && (
+          <RawOcsDataViewer
+            csvData={csvData}
+            pdfData={pdfData}
           />
         )}
         

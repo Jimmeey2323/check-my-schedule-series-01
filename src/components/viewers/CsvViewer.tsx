@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ClassData, FilterState } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { FileDropzone } from '../FileDropzone';
 import { FilterSection } from '../FilterSection';
@@ -181,124 +181,125 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   const daysCount = Object.keys(savedData).length;
 
   return (
-    <div className="flex flex-col h-full space-y-6 animate-fadeIn gradient-background min-h-screen">
-      {/* Premium Header with Glass Effect */}
-      <div className="glass-card rounded-xl p-6 sticky top-0 z-10 shadow-xl border-2 border-gray-200/60">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <Activity className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gradient-primary">Enhanced CSV Viewer</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50"></div>
-                <span className="text-sm text-gray-600">Live data • {totalClasses} classes loaded</span>
+    <div className="flex flex-col h-full space-y-4 p-4">
+      {/* Clean Header Section */}
+      <Card className="glass-card border-2 border-blue-200/60 shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Title & Status */}
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-emerald-600 flex items-center justify-center shadow-lg">
+                <Activity className="h-6 w-6 text-white" />
               </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
+                  CSV Schedule Data
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                  <span className="text-sm text-gray-600">{totalClasses} classes • {uniqueTrainers} trainers • {daysCount} days</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  const fileInput = document.createElement('input');
+                  fileInput.type = 'file';
+                  fileInput.accept = '.csv,text/csv';
+                  fileInput.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (file) handleFileUpload(file);
+                  };
+                  fileInput.click();
+                }}
+                disabled={isLoading}
+                className="hover:bg-blue-50 border-blue-300"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload New
+              </Button>
+              
+              <Button 
+                onClick={handleRefresh}
+                disabled={!savedData || isLoading}
+                className="bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Reprocess
+              </Button>
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-3">
-            <Button 
-              onClick={() => {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = '.csv,text/csv';
-                fileInput.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (file) handleFileUpload(file);
-                };
-                fileInput.click();
-              }}
-              className="btn-secondary"
-              disabled={isLoading}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload New CSV
-            </Button>
-            
-            <Button 
-              onClick={handleRefresh}
-              className="btn-primary"
-              disabled={!savedData || isLoading}
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Reprocess Data
-            </Button>
-          </div>
-        </div>
-        
-        {/* Enhanced Metrics Bar */}
-        <div className="flex flex-wrap gap-6 mt-6 pt-6 border-t-2 border-gray-200/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-success-light">
-              <Calendar className="h-5 w-5 text-emerald-700" />
+          {/* Compact Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-blue-600" />
+              <div className="text-sm">
+                <div className="font-semibold text-blue-700">{totalClasses}</div>
+                <div className="text-xs text-gray-500">Classes</div>
+              </div>
             </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-primary">{totalClasses}</div>
-              <div className="text-xs text-gray-600">Total Classes</div>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-emerald-600" />
+              <div className="text-sm">
+                <div className="font-semibold text-emerald-700">{uniqueTrainers}</div>
+                <div className="text-xs text-gray-500">Trainers</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-purple-600" />
+              <div className="text-sm">
+                <div className="font-semibold text-purple-700">{uniqueLocations}</div>
+                <div className="text-xs text-gray-500">Locations</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-orange-600" />
+              <div className="text-sm">
+                <div className="font-semibold text-orange-700">{daysCount}</div>
+                <div className="text-xs text-gray-500">Days</div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-accent-light">
-              <Users className="h-5 w-5 text-indigo-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-secondary">{uniqueTrainers}</div>
-              <div className="text-xs text-gray-600">Trainers</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg gradient-primary-light">
-              <MapPin className="h-5 w-5 text-gray-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-accent">{uniqueLocations}</div>
-              <div className="text-xs text-gray-600">Locations</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-orange-50 border border-orange-200">
-              <Activity className="h-5 w-5 text-orange-700" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient-primary">{daysCount}</div>
-              <div className="text-xs text-gray-600">Active Days</div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Feature Navigation Tabs */}
-      <div className="glass-card rounded-xl p-3 border-2 border-gray-200/60">
-        <div className="flex flex-wrap gap-3">
-          {[
-            { id: 'schedule', label: 'Schedule View', icon: Calendar, color: 'text-blue-700' },
-            { id: 'search', label: 'Smart Search', icon: Search, color: 'text-emerald-700' },
-            { id: 'conflicts', label: 'Conflict Detection', icon: AlertTriangle, color: 'text-orange-700' },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-purple-700' },
-            { id: 'actions', label: 'Quick Actions', icon: Settings, color: 'text-gray-700' }
-          ].map((feature, index) => (
-            <Button
-              key={feature.id}
-              onClick={() => setActiveFeature(feature.id as any)}
-              className={`
-                flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-105 border-2 animate-slideUp
-                ${activeFeature === feature.id 
-                  ? 'gradient-primary text-white shadow-lg border-gray-700' 
-                  : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                }
-              `}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <feature.icon className={`h-5 w-5 ${
-                activeFeature === feature.id ? 'text-white' : feature.color
-              }`} />
-              <span>{feature.label}</span>
-            </Button>
-          ))}
-        </div>
-      </div>
+      {/* Clean Feature Navigation */}
+      <Card className="glass-card">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'schedule', label: 'Schedule', icon: Calendar, color: 'blue' },
+              { id: 'search', label: 'Search', icon: Search, color: 'emerald' },
+              { id: 'conflicts', label: 'Conflicts', icon: AlertTriangle, color: 'orange' },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'purple' },
+              { id: 'actions', label: 'Actions', icon: Settings, color: 'gray' }
+            ].map((feature) => (
+              <Button
+                key={feature.id}
+                onClick={() => setActiveFeature(feature.id as any)}
+                variant={activeFeature === feature.id ? 'default' : 'outline'}
+                size="sm"
+                className={`
+                  flex items-center gap-2 transition-all duration-200
+                  ${
+                    activeFeature === feature.id 
+                      ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-md' 
+                      : 'hover:bg-gray-50 border-gray-300'
+                  }
+                `}
+              >
+                <feature.icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{feature.label}</span>
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0">

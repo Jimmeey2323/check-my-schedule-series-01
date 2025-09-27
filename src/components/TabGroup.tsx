@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { FileSpreadsheet, FileText, Search, Scale, FileX, Sparkles, Activity, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, FileText, Search, Scale, FileX, Sparkles, Activity, Trash2, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -21,6 +21,8 @@ export function TabGroup({ tabs, activeTab, onTabChange, onClearAllData }: TabGr
     switch (tabId) {
       case 'csv': return <FileSpreadsheet className="w-5 h-5" />;
       case 'pdf': return <FileText className="w-5 h-5" />;
+      case 'raw-ocs': return <Database className="w-5 h-5" />;
+      case 'originals': return <Activity className="w-5 h-5" />;
       case 'compare': return <Search className="w-5 h-5" />;
       case 'side-by-side': return <Scale className="w-5 h-5" />;
       case 'quick-mismatch': return <FileX className="w-5 h-5" />;
@@ -31,10 +33,12 @@ export function TabGroup({ tabs, activeTab, onTabChange, onClearAllData }: TabGr
   const getTabColor = (tabId: string) => {
     switch (tabId) {
       case 'csv': return 'text-emerald-500';
-      case 'pdf': return 'text-blue-500';
-      case 'compare': return 'text-purple-500';
+      case 'pdf': return 'text-red-500';
+      case 'raw-ocs': return 'text-purple-500';
+      case 'originals': return 'text-blue-500';
+      case 'compare': return 'text-indigo-500';
       case 'side-by-side': return 'text-orange-500';
-      case 'quick-mismatch': return 'text-red-500';
+      case 'quick-mismatch': return 'text-pink-500';
       default: return 'text-gray-500';
     }
   };
@@ -48,6 +52,8 @@ export function TabGroup({ tabs, activeTab, onTabChange, onClearAllData }: TabGr
       'csvFileName',
       'csvUploadDate',
       'originalPdfBlob',
+      'originalPdfOcrText',
+      'pdfOcrTimestamp',
       'pdfFileName',
       'pdfUploadDate',
       'csvFilters'
