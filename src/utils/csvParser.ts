@@ -16,9 +16,10 @@ const allowedTeachers = [
   'Kabir Varma', 'Simonelle De Vitre', 'Simran Dutt', 'Anmol Sharma', 'Bret Saldanha',
   'Raunak Khemuka', 'Kajol Kanchan', 'Pushyank Nahar', 'Shruti Kulkarni',
   'Shruti Suresh', 'Poojitha Bhaskar', 'Siddhartha Kusuma', 'Chaitanya Nahar', 'Veena Narasimhan',
+  'Sovena Fernandes',
   // Below are added from your old list for broader compatibility
   'Rohan', 'Anisha', 'Richard', 'Pranjali', 'Reshma', 'Atulan', 'Karanvir', 'Cauveri', 
-  'Mrigakshi', 'Vivaran', 'Karan', 'Nishanth', 'Pushyank', 'Kajol', 'Siddhartha', 'Shruti K', 'Veena', 'Chaitanya', 'Raunak'
+  'Mrigakshi', 'Vivaran', 'Karan', 'Nishanth', 'Pushyank', 'Kajol', 'Siddhartha', 'Shruti K', 'Veena', 'Chaitanya', 'Raunak', 'Sovena'
 ];
 
 
@@ -135,6 +136,7 @@ export function normalizeTrainerName(raw: string): string {
   if (val === 'nishant') return 'Nishanth Raj';
   if (val === 'raunaq') return 'Raunak Khemuka';
   if (val === 'richy') return "Richard D'Costa";
+  if (val === 'sovena' || val === 'sov') return 'Sovena Fernandes';
 
   // Match against the full list of allowed teachers
   for (const name of allowedTeachers) {
@@ -150,11 +152,28 @@ export function normalizeTrainerName(raw: string): string {
 
 
 // Helper function to check if a class name is valid (not a trainer name or invalid entry)
-// This function remains useful and does not need changes.
 export function isValidClassName(className: string): boolean {
   if (!className || className.trim() === '') return false;
   
   const trimmed = className.trim().toLowerCase();
+  
+  // Valid class names that should always pass (even if short)
+  const validClassNames = [
+    'recovery', 'fit', 'hiit', 'barre', 'mat', 'cycle', 'sweat', 'foundations',
+    'studio recovery', 'studio fit', 'studio hiit', 'express'
+  ];
+  
+  // If class name contains EXPRESS, it's always valid
+  if (trimmed.includes('express')) {
+    return true;
+  }
+  
+  // Check if it's a known valid class first
+  for (const valid of validClassNames) {
+    if (trimmed === valid || trimmed.includes(valid)) {
+      return true;
+    }
+  }
   
   const invalidNames = [
     'smita parekh', 'anandita', '2', 'hosted', '1', 'taarika', 'sakshi',

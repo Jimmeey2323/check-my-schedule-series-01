@@ -3,12 +3,9 @@ import { useState, useEffect } from 'react';
 import { TabGroup } from './TabGroup';
 import { CsvViewer } from './viewers/CsvViewer';
 import { PdfViewer } from './viewers/PdfViewer';
-import { ComparisonViewer } from './viewers/ComparisonViewer';
 import { SideBySideViewer } from './viewers/SideBySideViewer';
-import { QuickMismatchViewer } from './viewers/QuickMismatchViewer';
 import { OriginalFilesViewer } from './viewers/OriginalFilesViewer';
 import { RawOcsDataViewer } from './viewers/RawOcsDataViewer';
-import { CleanedOcrViewer } from './viewers/CleanedOcrViewer';
 import { ClassData, PdfClassData } from '@/types/schedule';
 import { toast } from '@/hooks/use-toast';
 
@@ -17,30 +14,32 @@ export function ClassScheduleViewer() {
   const [csvData, setCsvData] = useState<{[day: string]: ClassData[]} | null>(null);
   const [pdfData, setPdfData] = useState<PdfClassData[] | null>(null);
   
-  // Load saved data from localStorage on component mount
+  // Clear all data on app load - start fresh every time
   useEffect(() => {
-    try {
-      const savedCsvData = localStorage.getItem('csvScheduleData');
-      if (savedCsvData) {
-        const parsedData = JSON.parse(savedCsvData);
-        // Reconstruct Date objects for timeDate fields
-        const reconstructedData: {[day: string]: ClassData[]} = {};
-        Object.entries(parsedData).forEach(([day, classes]) => {
-          reconstructedData[day] = (classes as ClassData[]).map(cls => ({
-            ...cls,
-            timeDate: cls.timeDate ? new Date(cls.timeDate) : null
-          }));
-        });
-        setCsvData(reconstructedData);
-      }
-      
-      const savedPdfData = localStorage.getItem('pdfScheduleData');
-      if (savedPdfData) {
-        setPdfData(JSON.parse(savedPdfData));
-      }
-    } catch (error) {
-      console.error('Error loading saved data:', error);
-    }
+    // Clear all stored data on page load
+    localStorage.removeItem('csvScheduleData');
+    localStorage.removeItem('pdfScheduleData');
+    localStorage.removeItem('originalCsvText');
+    localStorage.removeItem('csvFileName');
+    localStorage.removeItem('csvUploadDate');
+    localStorage.removeItem('csvFilters');
+    localStorage.removeItem('cleanedOcrData');
+    localStorage.removeItem('rawOcrText');
+    // Clear original files data
+    localStorage.removeItem('originalPdfBlob');
+    localStorage.removeItem('pdfFileName');
+    localStorage.removeItem('pdfUploadDate');
+    localStorage.removeItem('originalPdfOcrText');
+    localStorage.removeItem('pdfOcrTimestamp');
+    
+    // Reset state
+    setCsvData(null);
+    setPdfData(null);
+    
+    // Dispatch event to notify components that data was cleared
+    window.dispatchEvent(new CustomEvent('scheduleDataCleared'));
+    
+    console.log('App loaded: All previous data cleared');
   }, []);
 
   // Save data to localStorage whenever it changes
@@ -61,12 +60,9 @@ export function ClassScheduleViewer() {
   const tabs = [
     { id: 'csv', label: 'CSV Schedule' },
     { id: 'pdf', label: 'PDF Schedule' },
-    { id: 'cleaned-ocr', label: 'Cleaned OCR' },
-    { id: 'raw-ocs', label: 'Raw OCS Data' },
+    { id: 'raw-ocs', label: 'Raw Data' },
     { id: 'originals', label: 'Original Files' },
-    { id: 'compare', label: 'Comparison' },
-    { id: 'side-by-side', label: 'Side by Side' },
-    { id: 'quick-mismatch', label: 'Quick Mismatch' }
+    { id: 'side-by-side', label: 'Comparison' }
   ];
 
   const handleCsvDataUpdate = (data: {[day: string]: ClassData[]}) => {
@@ -125,10 +121,6 @@ export function ClassScheduleViewer() {
           />
         )}
         
-        {activeTab === 'cleaned-ocr' && (
-          <CleanedOcrViewer />
-        )}
-        
         {activeTab === 'raw-ocs' && (
           <RawOcsDataViewer
             csvData={csvData}
@@ -139,23 +131,9 @@ export function ClassScheduleViewer() {
         {activeTab === 'originals' && (
           <OriginalFilesViewer />
         )}
-        
-        {activeTab === 'compare' && (
-          <ComparisonViewer 
-            csvData={csvData}
-            pdfData={pdfData}
-          />
-        )}
 
         {activeTab === 'side-by-side' && (
           <SideBySideViewer
-            csvData={csvData}
-            pdfData={pdfData}
-          />
-        )}
-
-        {activeTab === 'quick-mismatch' && (
-          <QuickMismatchViewer
             csvData={csvData}
             pdfData={pdfData}
           />

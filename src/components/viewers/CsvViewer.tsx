@@ -8,11 +8,9 @@ import { FilterSection } from '../FilterSection';
 import { ScheduleTabs } from '../ScheduleTabs';
 import { FullWeekSchedule } from '../FullWeekSchedule';
 import { SummarySection } from '../SummarySection';
-import { QuickActionsPanel } from '../QuickActionsPanel';
-import { SmartSearch } from '../SmartSearch';
-import { ConflictDetection } from '../ConflictDetection';
 import { extractScheduleData } from '@/utils/csvParser';
-import { Upload, Sparkles, Activity, Calendar, Users, MapPin, BarChart3, Search, AlertTriangle, Settings } from 'lucide-react';
+import { Upload, ChevronDown, ChevronUp, Calendar, Users, MapPin, Activity, BarChart3, Table2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface CsvViewerProps {
   savedData: {[day: string]: ClassData[]} | null;
@@ -22,18 +20,23 @@ interface CsvViewerProps {
 export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterState>({ day: [], location: [], trainer: [], className: [] });
+  const [filters, setFilters] = useState<FilterState>({ 
+    day: [], 
+    location: ['Kwality House, Kemps Corner'], // Default location
+    trainer: [], 
+    className: [] 
+  });
   const [viewOption, setViewOption] = useState<'byDay' | 'fullWeek'>('byDay');
-  const [activeFeature, setActiveFeature] = useState<'schedule' | 'analytics' | 'search' | 'conflicts' | 'actions'>('schedule');
+  const [activeTab, setActiveTab] = useState<'data' | 'summary'>('data');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Listen for clear data events
   useEffect(() => {
     const handleDataCleared = () => {
-      // Reset all internal state
       setError(null);
-      setFilters({ day: [], location: [], trainer: [], className: [] });
+      setFilters({ day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] });
       setViewOption('byDay');
-      setActiveFeature('schedule');
+      setActiveTab('data');
     };
 
     window.addEventListener('scheduleDataCleared', handleDataCleared);
@@ -51,21 +54,20 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
       
       const text = await file.text();
       
-      // Save original CSV text and metadata for reprocessing
       localStorage.setItem('originalCsvText', text);
       localStorage.setItem('csvFileName', file.name);
       localStorage.setItem('csvUploadDate', new Date().toLocaleDateString());
       
       const result = await extractScheduleData(text);
       
-      // Reset filters when new data is loaded
-      setFilters({ day: [], location: [], trainer: [], className: [] });
+      // Reset filters with default location when new data is loaded
+      setFilters({ day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] });
       
       onDataUpdate(result);
       
       toast({
         title: "✅ Success",
-        description: "CSV data processed successfully with enhanced validation!",
+        description: "CSV data processed successfully!",
         variant: "default",
       });
     } catch (err) {
@@ -83,43 +85,20 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
-    // Store filters in localStorage for persistence across tabs
     localStorage.setItem('csvFilters', JSON.stringify(newFilters));
   };
-
-  const handleExport = (format: string) => {
-    toast({
-      title: "🚀 Export Started",
-      description: `Generating ${format.toUpperCase()} export...`,
-      variant: "default",
-    });
-    // Export logic would be implemented here
-  };
-
-  const handleAnalytics = () => {
-    setActiveFeature('analytics');
-  };
-
-  const handleRefresh = () => {
-    // Reprocess the data
-    const savedCsvText = localStorage.getItem('originalCsvText');
-    if (savedCsvText) {
-      extractScheduleData(savedCsvText).then(result => {
-        onDataUpdate(result);
-        toast({
-          title: "🔄 Data Refreshed",
-          description: "Schedule data has been reprocessed with latest algorithms.",
-        });
-      });
-    }
-  };
   
-  // Load saved filters on component mount
-  React.useEffect(() => {
+  // Load saved filters on mount (but keep default location if no saved filters)
+  useEffect(() => {
     const savedFilters = localStorage.getItem('csvFilters');
     if (savedFilters) {
       try {
-        setFilters(JSON.parse(savedFilters));
+        const parsed = JSON.parse(savedFilters);
+        // Ensure Kwality House is selected if no location filter saved
+        if (!parsed.location || parsed.location.length === 0) {
+          parsed.location = ['Kwality House, Kemps Corner'];
+        }
+        setFilters(parsed);
       } catch (e) {
         console.error('Error parsing saved filters:', e);
       }
@@ -128,7 +107,7 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   
   if (!savedData) {
     return (
-      <div className="flex flex-col h-full animate-fadeIn">
+      <div className="flex flex-col h-full animate-fadeIn p-4">
         <FileDropzone 
           onFileUpload={handleFileUpload}
           accept=".csv,text/csv"
@@ -136,40 +115,6 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
           icon="file-csv"
           label="Drag & Drop your CSV schedule file here"
         />
-        
-        {/* Enhanced Welcome Message */}
-        <Card className="glass-card p-8 text-center mt-8 max-w-2xl mx-auto">
-          <div className="mb-6">
-            <div className="h-16 w-16 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-gradient-primary mb-2">Welcome to Enhanced CSV Viewer</h2>
-            <p className="text-gray-600">Experience next-generation schedule management with AI-powered features</p>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-3 gradient-success-light rounded-lg">
-              <Search className="h-6 w-6 mx-auto mb-2 text-emerald-700" />
-              <div className="text-sm font-medium text-emerald-700">Smart Search</div>
-            </div>
-            <div className="text-center p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-orange-700" />
-              <div className="text-sm font-medium text-orange-700">Conflict Detection</div>
-            </div>
-            <div className="text-center p-3 gradient-accent-light rounded-lg">
-              <BarChart3 className="h-6 w-6 mx-auto mb-2 text-indigo-700" />
-              <div className="text-sm font-medium text-indigo-700">AI Analytics</div>
-            </div>
-            <div className="text-center p-3 gradient-primary-light rounded-lg">
-              <Settings className="h-6 w-6 mx-auto mb-2 text-gray-700" />
-              <div className="text-sm font-medium text-gray-700">Quick Actions</div>
-            </div>
-          </div>
-          
-          <div className="text-sm text-gray-500">
-            Upload your CSV file to unlock powerful schedule analysis tools
-          </div>
-        </Card>
       </div>
     );
   }
@@ -179,140 +124,106 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
   const uniqueTrainers = new Set(Object.values(savedData).flat().map(cls => cls.trainer1)).size;
   const uniqueLocations = new Set(Object.values(savedData).flat().map(cls => cls.location)).size;
   const daysCount = Object.keys(savedData).length;
+  
+  // Count active filters
+  const activeFilterCount = filters.day.length + filters.location.length + filters.trainer.length + filters.className.length;
 
   return (
-    <div className="flex flex-col h-full space-y-4 p-4">
-      {/* Clean Header Section */}
-      <Card className="glass-card border-2 border-blue-200/60 shadow-lg">
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Title & Status */}
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-emerald-600 flex items-center justify-center shadow-lg">
-                <Activity className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent">
-                  CSV Schedule Data
-                </h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                  <span className="text-sm text-gray-600">{totalClasses} classes • {uniqueTrainers} trainers • {daysCount} days</span>
+    <div className="flex flex-col h-full p-4 space-y-3">
+      {/* Compact Header with Upload Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <span className="font-medium text-slate-700">{totalClasses}</span> classes
+            <span className="text-slate-300">•</span>
+            <span className="font-medium text-slate-700">{uniqueTrainers}</span> trainers
+            <span className="text-slate-300">•</span>
+            <span className="font-medium text-slate-700">{daysCount}</span> days
+          </div>
+        </div>
+        <Button 
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.csv,text/csv';
+            fileInput.onchange = (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (file) handleFileUpload(file);
+            };
+            fileInput.click();
+          }}
+          disabled={isLoading}
+          className="text-xs"
+        >
+          <Upload className="w-3 h-3 mr-1" />
+          Upload New
+        </Button>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab('data')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'data' 
+              ? 'bg-white shadow-sm text-slate-900' 
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Table2 className="w-4 h-4" />
+          Schedule Data
+        </button>
+        <button
+          onClick={() => setActiveTab('summary')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'summary' 
+              ? 'bg-white shadow-sm text-slate-900' 
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Summary & Analytics
+        </button>
+      </div>
+
+      {activeTab === 'data' && (
+        <>
+          {/* Collapsible Filter Section */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                      {activeFilterCount} active
+                    </span>
+                  )}
                 </div>
+                {filtersOpen ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="p-4 bg-white rounded-lg border border-slate-200">
+                <FilterSection 
+                  data={savedData}
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  onViewOptionChange={setViewOption}
+                  viewOption={viewOption}
+                />
               </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex gap-2">
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  const fileInput = document.createElement('input');
-                  fileInput.type = 'file';
-                  fileInput.accept = '.csv,text/csv';
-                  fileInput.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (file) handleFileUpload(file);
-                  };
-                  fileInput.click();
-                }}
-                disabled={isLoading}
-                className="hover:bg-blue-50 border-blue-300"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload New
-              </Button>
-              
-              <Button 
-                onClick={handleRefresh}
-                disabled={!savedData || isLoading}
-                className="bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Reprocess
-              </Button>
-            </div>
-          </div>
-          
-          {/* Compact Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-gray-200">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-blue-600" />
-              <div className="text-sm">
-                <div className="font-semibold text-blue-700">{totalClasses}</div>
-                <div className="text-xs text-gray-500">Classes</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-600" />
-              <div className="text-sm">
-                <div className="font-semibold text-emerald-700">{uniqueTrainers}</div>
-                <div className="text-xs text-gray-500">Trainers</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-purple-600" />
-              <div className="text-sm">
-                <div className="font-semibold text-purple-700">{uniqueLocations}</div>
-                <div className="text-xs text-gray-500">Locations</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-orange-600" />
-              <div className="text-sm">
-                <div className="font-semibold text-orange-700">{daysCount}</div>
-                <div className="text-xs text-gray-500">Days</div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CollapsibleContent>
+          </Collapsible>
 
-      {/* Clean Feature Navigation */}
-      <Card className="glass-card">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { id: 'schedule', label: 'Schedule', icon: Calendar, color: 'blue' },
-              { id: 'search', label: 'Search', icon: Search, color: 'emerald' },
-              { id: 'conflicts', label: 'Conflicts', icon: AlertTriangle, color: 'orange' },
-              { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'purple' },
-              { id: 'actions', label: 'Actions', icon: Settings, color: 'gray' }
-            ].map((feature) => (
-              <Button
-                key={feature.id}
-                onClick={() => setActiveFeature(feature.id as any)}
-                variant={activeFeature === feature.id ? 'default' : 'outline'}
-                size="sm"
-                className={`
-                  flex items-center gap-2 transition-all duration-200
-                  ${
-                    activeFeature === feature.id 
-                      ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-md' 
-                      : 'hover:bg-gray-50 border-gray-300'
-                  }
-                `}
-              >
-                <feature.icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{feature.label}</span>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Main Content Area */}
-      <div className="flex-1 min-h-0">
-        {activeFeature === 'schedule' && (
-          <div className="space-y-6">
-            <FilterSection 
-              data={savedData}
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              onViewOptionChange={setViewOption}
-              viewOption={viewOption}
-            />
-
+          {/* Data Table */}
+          <div className="flex-1 min-h-0 bg-white rounded-lg border border-slate-200 overflow-hidden">
             {viewOption === 'byDay' ? (
               <ScheduleTabs 
                 classesByDay={savedData}
@@ -324,69 +235,67 @@ export function CsvViewer({ savedData, onDataUpdate }: CsvViewerProps) {
                 filters={filters}
               />
             )}
-
-            <SummarySection 
-              classesByDay={savedData}
-              filters={filters}
-            />
           </div>
-        )}
+        </>
+      )}
 
-        {activeFeature === 'search' && (
-          <SmartSearch 
+      {activeTab === 'summary' && (
+        <div className="flex-1 min-h-0 overflow-auto space-y-6">
+          {/* Summary Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500 rounded-lg">
+                  <Calendar className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-900">{totalClasses}</div>
+                  <div className="text-xs text-blue-600 font-medium">Total Classes</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500 rounded-lg">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-900">{uniqueTrainers}</div>
+                  <div className="text-xs text-emerald-600 font-medium">Trainers</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-500 rounded-lg">
+                  <MapPin className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-900">{uniqueLocations}</div>
+                  <div className="text-xs text-purple-600 font-medium">Locations</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500 rounded-lg">
+                  <Activity className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-amber-900">{daysCount}</div>
+                  <div className="text-xs text-amber-600 font-medium">Days Active</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Summary Section */}
+          <SummarySection 
             classesByDay={savedData}
-            onFiltersChange={handleFilterChange}
-            currentFilters={filters}
+            filters={filters}
           />
-        )}
-
-        {activeFeature === 'conflicts' && (
-          <ConflictDetection classesByDay={savedData} />
-        )}
-
-        {activeFeature === 'analytics' && (
-          <div className="space-y-6">
-            <SummarySection 
-              classesByDay={savedData}
-              filters={filters}
-            />
-            <Card className="glass-card p-8 text-center border-2 border-gray-200/60">
-              <div className="h-16 w-16 rounded-xl gradient-accent flex items-center justify-center mx-auto mb-4">
-                <BarChart3 className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gradient-secondary mb-2">Advanced Analytics Dashboard</h3>
-              <p className="text-gray-600 mb-6">
-                Enhanced reporting with predictive insights, capacity planning, and performance metrics
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <div className="p-4 gradient-accent-light rounded-xl border-2 border-indigo-200/60">
-                  <div className="font-bold text-indigo-800">Utilization Reports</div>
-                  <div className="text-sm text-indigo-700 mt-1">Trainer and location usage analysis</div>
-                </div>
-                <div className="p-4 gradient-success-light rounded-xl border-2 border-emerald-200/60">
-                  <div className="font-bold text-emerald-800">Capacity Planning</div>
-                  <div className="text-sm text-emerald-700 mt-1">Optimal resource allocation insights</div>
-                </div>
-                <div className="p-4 gradient-primary-light rounded-xl border-2 border-gray-200/60">
-                  <div className="font-bold text-gray-800">Trend Analysis</div>
-                  <div className="text-sm text-gray-700 mt-1">Historical patterns and forecasting</div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {activeFeature === 'actions' && (
-          <QuickActionsPanel 
-            onExport={handleExport}
-            onRefresh={handleRefresh}
-            onAnalytics={handleAnalytics}
-            hasData={!!savedData}
-            dataQuality={95}
-            lastUpdated={new Date()}
-          />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -382,6 +382,24 @@ function isValidClassName(className: string): boolean {
   
   const trimmed = className.trim().toLowerCase();
   
+  // Valid class names that should always pass (even if short)
+  const validClassNames = [
+    'recovery', 'fit', 'hiit', 'barre', 'mat', 'cycle', 'sweat', 'foundations',
+    'express'
+  ];
+  
+  // If class name contains EXPRESS, it's always valid
+  if (trimmed.includes('express')) {
+    return true;
+  }
+  
+  // Check if it's a known valid class first
+  for (const valid of validClassNames) {
+    if (trimmed === valid || trimmed.includes(valid)) {
+      return true;
+    }
+  }
+  
   // List of invalid class names that should be excluded
   const invalidNames = [
     'smita parekh', 'anandita', '2', 'hosted', '1', 'taarika', 'sakshi',

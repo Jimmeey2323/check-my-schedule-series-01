@@ -1,55 +1,79 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ClassData, PdfClassData, FilterState } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
 import { FilterSection } from '../FilterSection';
 import { passesFilters } from '@/utils/filterUtils';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/hooks/use-toast';
+import { 
+  CheckCircle2, 
+  AlertTriangle, 
+  ArrowLeftRight, 
+  FileSpreadsheet, 
+  FileText, 
+  Users, 
+  BookOpen, 
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Copy,
+  Check
+} from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface SideBySideViewerProps {
   csvData: {[day: string]: ClassData[]} | null;
   pdfData: PdfClassData[] | null;
 }
 
-type ViewMode = 'table' | 'cards' | 'compact' | 'detailed' | 'calendar';
+// More specific mismatch types
+type MismatchType = 'match' | 'trainer-mismatch' | 'class-mismatch' | 'time-mismatch' | 'csv-only' | 'pdf-only';
+type QuickFilter = 'all' | 'matches' | 'trainer-mismatch' | 'class-mismatch' | 'time-mismatch' | 'csv-only' | 'pdf-only';
 
 export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
-  const [filters, setFilters] = useState<FilterState>({ day: [], location: [], trainer: [], className: [] });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [filters, setFilters] = useState<FilterState>({ day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] });
   const [flattenedCsvData, setFlattenedCsvData] = useState<ClassData[]>([]);
   const [filteredCsvData, setFilteredCsvData] = useState<ClassData[]>([]);
   const [filteredPdfData, setFilteredPdfData] = useState<PdfClassData[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   // Refs for synchronized scrolling
-  const csvScrollRef = useRef<HTMLDivElement>(null);
-  const pdfScrollRef = useRef<HTMLDivElement>(null);
-  const isScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
-  // Load saved filters
+  // Set default filter on mount (only if no saved filters)
   useEffect(() => {
     const savedFilters = localStorage.getItem('csvFilters');
     if (savedFilters) {
       try {
-        setFilters(JSON.parse(savedFilters));
+        const parsed = JSON.parse(savedFilters);
+        // Only use saved filters if they have values, otherwise use default
+        if (parsed.location && parsed.location.length > 0) {
+          setFilters(parsed);
+        } else {
+          // Set default to Kwality House and Kemps Corner
+          const defaultFilters = { day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] };
+          setFilters(defaultFilters);
+          localStorage.setItem('csvFilters', JSON.stringify(defaultFilters));
+        }
       } catch (e) {
         console.error('Error parsing saved filters:', e);
       }
+    } else {
+      // No saved filters, set default
+      const defaultFilters = { day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] };
+      setFilters(defaultFilters);
+      localStorage.setItem('csvFilters', JSON.stringify(defaultFilters));
     }
   }, []);
 
   // Listen for clear data events and reset state
   useEffect(() => {
     const handleDataCleared = () => {
-      setFilters({ day: [], location: [], trainer: [], className: [] });
-      setCurrentPage(1);
-      setViewMode('table');
+      setFilters({ day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] });
+      setQuickFilter('all');
     };
 
     window.addEventListener('scheduleDataCleared', handleDataCleared);
@@ -94,99 +118,18 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     
     setFilteredCsvData(csvFiltered);
     setFilteredPdfData(pdfFiltered);
-    setCurrentPage(1);
   }, [csvData, pdfData, flattenedCsvData, filters]);
-  
-  // Calculate pagination
-  const paginatedCsvData = filteredCsvData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  
-  const paginatedPdfData = filteredPdfData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  
-  const totalPages = Math.max(
-    Math.ceil(filteredCsvData.length / itemsPerPage),
-    Math.ceil(filteredPdfData.length / itemsPerPage)
-  );
   
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
     localStorage.setItem('csvFilters', JSON.stringify(newFilters));
   };
   
-  // Synchronized scrolling handlers
-  const handleCsvScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (isScrollingRef.current) return;
-    
-    const element = e.currentTarget;
-    const scrollTop = element.scrollTop;
-    const scrollLeft = element.scrollLeft;
-    
-    isScrollingRef.current = true;
-    
-    if (pdfScrollRef.current) {
-      pdfScrollRef.current.scrollTop = scrollTop;
-      pdfScrollRef.current.scrollLeft = scrollLeft;
-    }
-    
-    // Clear any existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-    
-    // Reset the scrolling flag after a short delay
-    scrollTimeoutRef.current = setTimeout(() => {
-      isScrollingRef.current = false;
-    }, 100);
-  };
-  
-  const handlePdfScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (isScrollingRef.current) return;
-    
-    const element = e.currentTarget;
-    const scrollTop = element.scrollTop;
-    const scrollLeft = element.scrollLeft;
-    
-    isScrollingRef.current = true;
-    
-    if (csvScrollRef.current) {
-      csvScrollRef.current.scrollTop = scrollTop;
-      csvScrollRef.current.scrollLeft = scrollLeft;
-    }
-    
-    // Clear any existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-    
-    // Reset the scrolling flag after a short delay
-    scrollTimeoutRef.current = setTimeout(() => {
-      isScrollingRef.current = false;
-    }, 100);
-  };
-  
-  // Pagination handlers
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
-  
-  const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-  };
-  
-  const handlePageClick = (page: number) => {
-    setCurrentPage(page);
-  };
-  
   if (!csvData || !pdfData) {
     return (
       <Card className="flex flex-col items-center justify-center p-8">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Side-by-Side Comparison Not Available</h2>
+          <h2 className="text-xl font-semibold mb-4">Comparison Not Available</h2>
           <p className="mb-4 text-gray-600">
             Please upload both CSV and PDF schedule data to enable comparison.
           </p>
@@ -207,857 +150,639 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     );
   }
   
-  // View mode options
-  const renderTableView = () => {
-    // Group data by day for better comparison
-    const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const groupedCsvData: {[day: string]: ClassData[]} = {};
-    const groupedPdfData: {[day: string]: PdfClassData[]} = {};
+  // Helper functions for time parsing and normalization
+  const parseTimeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const match = timeStr.match(/(\d{1,2})[:.:](\d{2})\s*(AM|PM)?/i);
+    if (match) {
+      let hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const period = match[3]?.toUpperCase();
+      
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      return hours * 60 + minutes;
+    }
+    return 0;
+  };
+
+  const normalizeTimeKey = (timeStr: string): string => {
+    const minutes = parseTimeToMinutes(timeStr);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+
+  // Group data by day
+  const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const groupedCsvData: {[day: string]: ClassData[]} = {};
+  const groupedPdfData: {[day: string]: PdfClassData[]} = {};
+  
+  filteredCsvData.forEach(item => {
+    if (!groupedCsvData[item.day]) groupedCsvData[item.day] = [];
+    groupedCsvData[item.day].push(item);
+  });
+  
+  filteredPdfData.forEach(item => {
+    if (!groupedPdfData[item.day]) groupedPdfData[item.day] = [];
+    groupedPdfData[item.day].push(item);
+  });
+  
+  const allDays = Array.from(new Set([
+    ...Object.keys(groupedCsvData),
+    ...Object.keys(groupedPdfData)
+  ])).sort((a, b) => {
+    const aIndex = daysOrder.indexOf(a);
+    const bIndex = daysOrder.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
+  // Build aligned rows for each day
+  interface AlignedRow {
+    day: string;
+    timeKey: string;
+    displayTime: string;
+    sortKey: number;
+    csvClass: ClassData | null;
+    pdfClass: PdfClassData | null;
+    matchStatus: MismatchType;
+  }
+
+  const buildAlignedDayData = (day: string): AlignedRow[] => {
+    const csvClasses = [...(groupedCsvData[day] || [])].sort((a, b) => 
+      parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
+    );
+    const pdfClasses = [...(groupedPdfData[day] || [])].sort((a, b) => 
+      parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
+    );
     
-    // Group filtered data by day
-    filteredCsvData.forEach(item => {
-      if (!groupedCsvData[item.day]) groupedCsvData[item.day] = [];
-      groupedCsvData[item.day].push(item);
-    });
+    const alignedRows: AlignedRow[] = [];
+    const usedCsvIndices = new Set<number>();
+    const usedPdfIndices = new Set<number>();
     
-    filteredPdfData.forEach(item => {
-      if (!groupedPdfData[item.day]) groupedPdfData[item.day] = [];
-      groupedPdfData[item.day].push(item);
-    });
-    
-    // Get all available days
-    const allDays = Array.from(new Set([
-      ...Object.keys(groupedCsvData),
-      ...Object.keys(groupedPdfData)
-    ])).sort((a, b) => {
-      const aIndex = daysOrder.indexOf(a);
-      const bIndex = daysOrder.indexOf(b);
-      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-      return aIndex - bIndex;
-    });
-
-    // Helper function to parse time to minutes for sorting
-    const parseTimeToMinutes = (timeStr: string): number => {
-      if (!timeStr) return 0;
-      const match = timeStr.match(/(\d{1,2})[:.:](\d{2})\s*(AM|PM)?/i);
-      if (match) {
-        let hours = parseInt(match[1]);
-        const minutes = parseInt(match[2]);
-        const period = match[3]?.toUpperCase();
-        
-        if (period === 'PM' && hours !== 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        
-        return hours * 60 + minutes;
-      }
-      return 0;
-    };
-
-    // Helper function to format time consistently for comparison
-    const normalizeTimeKey = (timeStr: string): string => {
-      const minutes = parseTimeToMinutes(timeStr);
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-    };
-
-    // Build unified aligned rows for each day
-    // Each row represents one class entry, aligned by time
-    const buildAlignedDayData = (day: string) => {
-      const csvClasses = [...(groupedCsvData[day] || [])].sort((a, b) => 
-        parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
-      );
-      const pdfClasses = [...(groupedPdfData[day] || [])].sort((a, b) => 
-        parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
-      );
-      
-      // Build a list of all unique time+class combinations
-      interface AlignedRow {
-        timeKey: string;
-        displayTime: string;
-        sortKey: number;
-        csvClass: ClassData | null;
-        pdfClass: PdfClassData | null;
-      }
-      
-      const alignedRows: AlignedRow[] = [];
-      const usedCsvIndices = new Set<number>();
-      const usedPdfIndices = new Set<number>();
-      
-      // First, try to match CSV classes with PDF classes at the same time
-      csvClasses.forEach((csvClass, csvIdx) => {
-        const csvTimeKey = normalizeTimeKey(csvClass.time);
-        const csvSortKey = parseTimeToMinutes(csvClass.time);
-        
-        // Find matching PDF class at the same time with same class name
-        const matchingPdfIdx = pdfClasses.findIndex((pdfClass, pdfIdx) => {
-          if (usedPdfIndices.has(pdfIdx)) return false;
-          const pdfTimeKey = normalizeTimeKey(pdfClass.time);
-          return pdfTimeKey === csvTimeKey && 
-            (pdfClass.className.toLowerCase().includes(csvClass.className.toLowerCase().replace('studio ', '')) ||
-             csvClass.className.toLowerCase().includes(pdfClass.className.toLowerCase().replace('studio ', '')));
-        });
-        
-        if (matchingPdfIdx !== -1) {
-          usedCsvIndices.add(csvIdx);
-          usedPdfIndices.add(matchingPdfIdx);
-          alignedRows.push({
-            timeKey: csvTimeKey,
-            displayTime: csvClass.time,
-            sortKey: csvSortKey,
-            csvClass: csvClass,
-            pdfClass: pdfClasses[matchingPdfIdx]
-          });
-        }
-      });
-      
-      // Add remaining CSV classes (not matched)
-      csvClasses.forEach((csvClass, csvIdx) => {
-        if (usedCsvIndices.has(csvIdx)) return;
-        const csvTimeKey = normalizeTimeKey(csvClass.time);
-        const csvSortKey = parseTimeToMinutes(csvClass.time);
-        
-        // Check if there's any PDF class at this time (even if different class)
-        const pdfAtSameTime = pdfClasses.find((pdfClass, pdfIdx) => {
-          if (usedPdfIndices.has(pdfIdx)) return false;
-          return normalizeTimeKey(pdfClass.time) === csvTimeKey;
-        });
-        
-        if (pdfAtSameTime) {
-          const pdfIdx = pdfClasses.indexOf(pdfAtSameTime);
-          usedPdfIndices.add(pdfIdx);
-          alignedRows.push({
-            timeKey: csvTimeKey,
-            displayTime: csvClass.time,
-            sortKey: csvSortKey,
-            csvClass: csvClass,
-            pdfClass: pdfAtSameTime
-          });
-        } else {
-          alignedRows.push({
-            timeKey: csvTimeKey,
-            displayTime: csvClass.time,
-            sortKey: csvSortKey,
-            csvClass: csvClass,
-            pdfClass: null
-          });
-        }
-      });
-      
-      // Add remaining PDF classes (not matched)
-      pdfClasses.forEach((pdfClass, pdfIdx) => {
-        if (usedPdfIndices.has(pdfIdx)) return;
-        const pdfTimeKey = normalizeTimeKey(pdfClass.time);
-        const pdfSortKey = parseTimeToMinutes(pdfClass.time);
-        
-        alignedRows.push({
-          timeKey: pdfTimeKey,
-          displayTime: pdfClass.time,
-          sortKey: pdfSortKey,
-          csvClass: null,
-          pdfClass: pdfClass
-        });
-      });
-      
-      // Sort all rows by time
-      alignedRows.sort((a, b) => a.sortKey - b.sortKey);
-      
-      return alignedRows;
-    };
-
-    // Helper function to check if a row is a perfect match
-    const isFullMatch = (slot: { csvClass: ClassData | null; pdfClass: PdfClassData | null }) => {
-      if (!slot.csvClass || !slot.pdfClass) return false;
+    // Helper to determine specific match status
+    const getMatchStatus = (csvClass: ClassData | null, pdfClass: PdfClassData | null): MismatchType => {
+      if (!csvClass && pdfClass) return 'pdf-only';
+      if (csvClass && !pdfClass) return 'csv-only';
+      if (!csvClass || !pdfClass) return 'csv-only';
       
       // Check time match
-      const csvTimeKey = normalizeTimeKey(slot.csvClass.time);
-      const pdfTimeKey = normalizeTimeKey(slot.pdfClass.time);
-      if (csvTimeKey !== pdfTimeKey) return false;
+      const csvTimeKey = normalizeTimeKey(csvClass.time);
+      const pdfTimeKey = normalizeTimeKey(pdfClass.time);
+      const timeMatches = csvTimeKey === pdfTimeKey;
       
-      // Check class name match (case insensitive, ignore "Studio " prefix)
-      const csvClassName = slot.csvClass.className.toLowerCase().replace('studio ', '');
-      const pdfClassName = slot.pdfClass.className.toLowerCase().replace('studio ', '');
-      if (!csvClassName.includes(pdfClassName) && !pdfClassName.includes(csvClassName)) return false;
+      // Check class name match
+      const csvClassName = csvClass.className.toLowerCase().replace('studio ', '');
+      const pdfClassName = pdfClass.className.toLowerCase().replace('studio ', '');
+      const classMatches = csvClassName.includes(pdfClassName) || pdfClassName.includes(csvClassName);
       
       // Check trainer match
-      if (slot.csvClass.trainer1 !== slot.pdfClass.trainer) return false;
+      const trainerMatches = csvClass.trainer1 === pdfClass.trainer;
       
-      return true;
+      // Determine specific mismatch type (prioritize by importance)
+      if (!timeMatches) return 'time-mismatch';
+      if (!classMatches) return 'class-mismatch';
+      if (!trainerMatches) return 'trainer-mismatch';
+      
+      return 'match';
     };
+    
+    // Match CSV classes with PDF classes at the same time
+    csvClasses.forEach((csvClass, csvIdx) => {
+      const csvTimeKey = normalizeTimeKey(csvClass.time);
+      const csvSortKey = parseTimeToMinutes(csvClass.time);
+      
+      const matchingPdfIdx = pdfClasses.findIndex((pdfClass, pdfIdx) => {
+        if (usedPdfIndices.has(pdfIdx)) return false;
+        const pdfTimeKey = normalizeTimeKey(pdfClass.time);
+        return pdfTimeKey === csvTimeKey && 
+          (pdfClass.className.toLowerCase().includes(csvClass.className.toLowerCase().replace('studio ', '')) ||
+           csvClass.className.toLowerCase().includes(pdfClass.className.toLowerCase().replace('studio ', '')));
+      });
+      
+      if (matchingPdfIdx !== -1) {
+        usedCsvIndices.add(csvIdx);
+        usedPdfIndices.add(matchingPdfIdx);
+        const pdfClass = pdfClasses[matchingPdfIdx];
+        alignedRows.push({
+          day,
+          timeKey: csvTimeKey,
+          displayTime: csvClass.time,
+          sortKey: csvSortKey,
+          csvClass: csvClass,
+          pdfClass: pdfClass,
+          matchStatus: getMatchStatus(csvClass, pdfClass)
+        });
+      }
+    });
+    
+    // Add remaining CSV classes
+    csvClasses.forEach((csvClass, csvIdx) => {
+      if (usedCsvIndices.has(csvIdx)) return;
+      const csvTimeKey = normalizeTimeKey(csvClass.time);
+      const csvSortKey = parseTimeToMinutes(csvClass.time);
+      
+      const pdfAtSameTime = pdfClasses.find((pdfClass, pdfIdx) => {
+        if (usedPdfIndices.has(pdfIdx)) return false;
+        return normalizeTimeKey(pdfClass.time) === csvTimeKey;
+      });
+      
+      if (pdfAtSameTime) {
+        const pdfIdx = pdfClasses.indexOf(pdfAtSameTime);
+        usedPdfIndices.add(pdfIdx);
+        alignedRows.push({
+          day,
+          timeKey: csvTimeKey,
+          displayTime: csvClass.time,
+          sortKey: csvSortKey,
+          csvClass: csvClass,
+          pdfClass: pdfAtSameTime,
+          matchStatus: getMatchStatus(csvClass, pdfAtSameTime)
+        });
+      } else {
+        alignedRows.push({
+          day,
+          timeKey: csvTimeKey,
+          displayTime: csvClass.time,
+          sortKey: csvSortKey,
+          csvClass: csvClass,
+          pdfClass: null,
+          matchStatus: 'csv-only'
+        });
+      }
+    });
+    
+    // Add remaining PDF classes
+    pdfClasses.forEach((pdfClass, pdfIdx) => {
+      if (usedPdfIndices.has(pdfIdx)) return;
+      const pdfTimeKey = normalizeTimeKey(pdfClass.time);
+      const pdfSortKey = parseTimeToMinutes(pdfClass.time);
+      
+      alignedRows.push({
+        day,
+        timeKey: pdfTimeKey,
+        displayTime: pdfClass.time,
+        sortKey: pdfSortKey,
+        csvClass: null,
+        pdfClass: pdfClass,
+        matchStatus: 'pdf-only'
+      });
+    });
+    
+    alignedRows.sort((a, b) => a.sortKey - b.sortKey);
+    return alignedRows;
+  };
 
-    return (
-      <div className="flex flex-col mt-4 flex-1 min-h-0 border rounded-lg overflow-hidden">
-        {/* Single scrollable container for aligned view */}
-        <div 
-          ref={csvScrollRef}
-          className="flex-1 overflow-auto"
-          onScroll={handleCsvScroll}
-        >
-          {allDays.map(day => {
-            const alignedData = buildAlignedDayData(day);
-            const csvCount = alignedData.filter(s => s.csvClass).length;
-            const pdfCount = alignedData.filter(s => s.pdfClass).length;
-            const matchCount = alignedData.filter(s => isFullMatch(s)).length;
-            
-            return (
-              <div key={`aligned-${day}`} className="border-b-2 border-gray-300">
-                {/* Day Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-red-600 px-4 py-2 font-semibold text-white border-b border-gray-200 z-20 h-10 flex items-center justify-between">
-                  <span>{day}</span>
-                  <span className="text-sm font-normal">
-                    CSV: {csvCount} | PDF: {pdfCount} | ✓ Matched: {matchCount}
-                  </span>
-                </div>
-                
-                {/* Table Header */}
-                <div className="sticky top-10 z-10 h-8 flex">
-                  {/* CSV Headers */}
-                  <div className="flex-1 bg-blue-100 grid grid-cols-4 border-r-2 border-gray-400">
-                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Time</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Class</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Trainer</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-blue-700">Location</div>
-                  </div>
-                  {/* Match indicator column */}
-                  <div className="w-10 bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">✓</div>
-                  {/* PDF Headers */}
-                  <div className="flex-1 bg-red-100 grid grid-cols-4 border-l-2 border-gray-400">
-                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Time</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Class</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Trainer</div>
-                    <div className="px-2 flex items-center text-xs font-medium text-red-700">Location</div>
-                  </div>
-                </div>
-                
-                {/* Data Rows */}
-                {alignedData.length > 0 ? (
-                  alignedData.map((slot, idx) => {
-                    const fullMatch = isFullMatch(slot);
-                    const hasMismatch = slot.csvClass && slot.pdfClass && slot.csvClass.trainer1 !== slot.pdfClass.trainer;
-                    const classNameMismatch = slot.csvClass && slot.pdfClass &&
-                      !slot.pdfClass.className.toLowerCase().includes(slot.csvClass.className.toLowerCase().replace('studio ', '')) &&
-                      !slot.csvClass.className.toLowerCase().includes(slot.pdfClass.className.toLowerCase().replace('studio ', ''));
-                    
-                    const rowBg = fullMatch 
-                      ? 'bg-green-50 hover:bg-green-100' 
-                      : (hasMismatch || classNameMismatch) 
-                        ? 'bg-yellow-50 hover:bg-yellow-100'
-                        : 'hover:bg-gray-50';
-                    
-                    return (
-                      <div 
-                        key={`row-${day}-${idx}`} 
-                        className={`flex h-11 border-b border-gray-100 ${rowBg}`}
-                      >
-                        {/* CSV Side */}
-                        <div className={`flex-1 grid grid-cols-4 border-r-2 border-gray-300 ${slot.csvClass ? '' : 'bg-gray-50'}`}>
-                          {slot.csvClass ? (
-                            <>
-                              <div className="px-2 flex items-center text-xs font-mono whitespace-nowrap overflow-hidden border-r border-gray-100">{slot.csvClass.time}</div>
-                              <div className="px-2 flex items-center text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100" title={slot.csvClass.className}>{slot.csvClass.className}</div>
-                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100" title={slot.csvClass.trainer1}>{slot.csvClass.trainer1}</div>
-                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis" title={slot.csvClass.location}>{slot.csvClass.location}</div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="px-2 flex items-center text-xs font-mono text-gray-400 whitespace-nowrap border-r border-gray-100">{slot.displayTime}</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic">—</div>
-                            </>
-                          )}
-                        </div>
-                        
-                        {/* Match Indicator */}
-                        <div className={`w-10 flex items-center justify-center text-sm ${
-                          fullMatch 
-                            ? 'bg-green-200 text-green-700' 
-                            : (slot.csvClass && slot.pdfClass)
-                              ? 'bg-yellow-200 text-yellow-700'
-                              : 'bg-gray-100 text-gray-400'
-                        }`}>
-                          {fullMatch ? '✓' : (slot.csvClass && slot.pdfClass) ? '~' : '○'}
-                        </div>
-                        
-                        {/* PDF Side */}
-                        <div className={`flex-1 grid grid-cols-4 border-l-2 border-gray-300 ${slot.pdfClass ? '' : 'bg-gray-50'}`}>
-                          {slot.pdfClass ? (
-                            <>
-                              <div className="px-2 flex items-center text-xs font-mono whitespace-nowrap overflow-hidden border-r border-gray-100">{slot.pdfClass.time}</div>
-                              <div className={`px-2 flex items-center text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 ${classNameMismatch ? 'text-orange-600' : ''}`} title={slot.pdfClass.className}>
-                                {slot.pdfClass.className}
-                              </div>
-                              <div className={`px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 ${hasMismatch ? 'text-red-600 font-semibold' : ''}`} title={slot.pdfClass.trainer}>
-                                {slot.pdfClass.trainer}
-                              </div>
-                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis" title={slot.pdfClass.location}>{slot.pdfClass.location}</div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="px-2 flex items-center text-xs font-mono text-gray-400 whitespace-nowrap border-r border-gray-100">{slot.displayTime}</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
-                              <div className="px-2 flex items-center text-xs text-gray-400 italic">—</div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="h-12 flex items-center justify-center text-gray-500 text-sm">No classes for this day</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-  
-  const renderCardsView = () => {
-    return (
-      <div className="flex flex-col md:flex-row gap-4 mt-4 flex-1 min-h-0">
-        {/* CSV Cards */}
-        <div className="flex-1 flex flex-col glass-card rounded-md p-2 overflow-hidden animate-slideUp">
-          <div className="p-2 font-semibold text-center mb-2 text-gradient-primary">
-            CSV Schedule ({filteredCsvData.length} classes)
-          </div>
-          <div 
-            ref={csvScrollRef}
-            className="flex-1 overflow-auto"
-            onScroll={handleCsvScroll}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
-              {paginatedCsvData.length > 0 ? (
-                paginatedCsvData.map((item, idx) => (
-                  <Card key={`csv-card-${idx}`}>
-                    <CardContent className="p-4">
-                      <div className="font-bold text-lg mb-1">{item.className}</div>
-                      <div><span className="font-medium">Day:</span> {item.day}</div>
-                      <div><span className="font-medium">Time:</span> {item.time}</div>
-                      <div><span className="font-medium">Trainer:</span> {item.trainer1}</div>
-                      <div><span className="font-medium">Location:</span> {item.location}</div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="col-span-2 text-center py-8">No CSV data matches your filters</div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        {/* PDF Cards */}
-        <div className="flex-1 flex flex-col glass-card rounded-md p-2 overflow-hidden animate-slideUp">
-          <div className="p-2 font-semibold text-center mb-2 text-red-600">
-            PDF Schedule ({filteredPdfData.length} classes)
-          </div>
-          <div 
-            ref={pdfScrollRef}
-            className="flex-1 overflow-auto"
-            onScroll={handlePdfScroll}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
-              {paginatedPdfData.length > 0 ? (
-                paginatedPdfData.map((item, idx) => (
-                  <Card key={`pdf-card-${idx}`}>
-                    <CardContent className="p-4">
-                      <div className="font-bold text-lg mb-1">{item.className}</div>
-                      <div><span className="font-medium">Day:</span> {item.day}</div>
-                      <div><span className="font-medium">Time:</span> {item.time}</div>
-                      <div><span className="font-medium">Trainer:</span> {item.trainer}</div>
-                      <div><span className="font-medium">Location:</span> {item.location}</div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="col-span-2 text-center py-8">No PDF data matches your filters</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-  
-  const renderCompactView = () => {
-    return (
-      <div className="flex flex-col mt-4 flex-1 min-h-0">
-        <ScrollArea className="flex-1">
-          <Table>
-            <TableHeader className="sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="bg-gray-700 text-white">Day</TableHead>
-                <TableHead className="bg-blue-600 text-white">CSV Class</TableHead>
-                <TableHead className="bg-red-600 text-white">PDF Class</TableHead>
-                <TableHead className="bg-blue-600 text-white">CSV Time</TableHead>
-                <TableHead className="bg-red-600 text-white">PDF Time</TableHead>
-                <TableHead className="bg-blue-600 text-white">CSV Location</TableHead>
-                <TableHead className="bg-red-600 text-white">PDF Location</TableHead>
-                <TableHead className="bg-blue-600 text-white">CSV Trainer</TableHead>
-                <TableHead className="bg-red-600 text-white">PDF Trainer</TableHead>
-                <TableHead className="bg-purple-600 text-white">PDF Theme</TableHead>
-                <TableHead className="bg-gray-700 text-white">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedCsvData.map((csvItem, idx) => {
-                const matchingPdfItem = filteredPdfData.find(pdf => 
-                  pdf.day === csvItem.day && 
-                  pdf.time === csvItem.time && 
-                  pdf.className === csvItem.className
-                );
-                
-                const status = matchingPdfItem 
-                  ? (matchingPdfItem.trainer === csvItem.trainer1 ? 'Match' : 'Trainer Mismatch')
-                  : 'Missing in PDF';
-                  
-                const statusColor = status === 'Match' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                
-                return (
-                  <TableRow key={`compact-${idx}`} className="hover:bg-gray-50">
-                    <TableCell>{csvItem.day}</TableCell>
-                    <TableCell className="bg-blue-50">{csvItem.className}</TableCell>
-                    <TableCell className="bg-red-50">{matchingPdfItem?.className || '-'}</TableCell>
-                    <TableCell className="bg-blue-50">{csvItem.time}</TableCell>
-                    <TableCell className="bg-red-50">{matchingPdfItem?.time || '-'}</TableCell>
-                    <TableCell className="bg-blue-50">{csvItem.location}</TableCell>
-                    <TableCell className="bg-red-50">{matchingPdfItem?.location || '-'}</TableCell>
-                    <TableCell className="bg-blue-50">{csvItem.trainer1}</TableCell>
-                    <TableCell className="bg-red-50">{matchingPdfItem?.trainer || '-'}</TableCell>
-                    <TableCell className="bg-purple-50 text-purple-700 font-medium">
-                      {matchingPdfItem?.theme || '-'}
-                    </TableCell>
-                    <TableCell className={statusColor}>{status}</TableCell>
-                  </TableRow>
-                );
-              })}
-              
-              {paginatedPdfData
-                .filter(pdfItem => 
-                  !paginatedCsvData.some(csv => 
-                    csv.day === pdfItem.day && 
-                    csv.time === pdfItem.time && 
-                    csv.className === pdfItem.className
-                  )
-                )
-                .map((pdfItem, idx) => (
-                  <TableRow key={`pdf-only-${idx}`} className="hover:bg-gray-50">
-                    <TableCell>{pdfItem.day}</TableCell>
-                    <TableCell className="bg-blue-50">-</TableCell>
-                    <TableCell className="bg-red-50">{pdfItem.className}</TableCell>
-                    <TableCell className="bg-blue-50">-</TableCell>
-                    <TableCell className="bg-red-50">{pdfItem.time}</TableCell>
-                    <TableCell className="bg-blue-50">-</TableCell>
-                    <TableCell className="bg-red-50">{pdfItem.location}</TableCell>
-                    <TableCell className="bg-blue-50">-</TableCell>
-                    <TableCell className="bg-red-50">{pdfItem.trainer}</TableCell>
-                    <TableCell className="bg-purple-50 text-purple-700 font-medium">
-                      {pdfItem.theme || '-'}
-                    </TableCell>
-                    <TableCell className="bg-red-100 text-red-800">Missing in CSV</TableCell>
-                  </TableRow>
-                ))
-              }
-              
-              {paginatedCsvData.length === 0 && paginatedPdfData.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8">No data matches your filters</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </ScrollArea>
-      </div>
-    );
-  };
-  
-  const renderDetailedView = () => {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const visibleDays = filters.day.length > 0 ? filters.day : days;
-    
-    return (
-      <div className="mt-4 flex-1 min-h-0 overflow-auto">
-        <ScrollArea className="h-full">
-          {visibleDays.map((day) => {
-            const csvDayData = filteredCsvData.filter(item => item.day === day);
-            const pdfDayData = filteredPdfData.filter(item => item.day === day);
-            
-            if (csvDayData.length === 0 && pdfDayData.length === 0) return null;
-            
-            return (
-              <div key={day} className="mb-8">
-                <h3 className="text-lg font-bold mb-2 bg-gray-100 p-2 rounded">{day}</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold mb-2 bg-blue-100 p-1 rounded">CSV Schedule</h4>
-                    {csvDayData.length > 0 ? (
-                      <div className="space-y-4">
-                        {csvDayData.map((item, idx) => (
-                          <Card key={`csv-detail-${idx}`}>
-                            <CardContent className="p-3">
-                              <div className="flex justify-between">
-                                <span className="font-bold">{item.time}</span>
-                                <span className="font-medium">{item.location}</span>
-                              </div>
-                              <div className="font-semibold mt-1">{item.className}</div>
-                              <div className="text-sm mt-1">Trainer: {item.trainer1}</div>
-                              {item.notes && <div className="text-sm mt-1 italic">{item.notes}</div>}
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 bg-gray-50 rounded">No CSV classes for {day}</div>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 bg-red-100 p-1 rounded">PDF Schedule</h4>
-                    {pdfDayData.length > 0 ? (
-                      <div className="space-y-4">
-                        {pdfDayData.map((item, idx) => (
-                          <Card key={`pdf-detail-${idx}`}>
-                            <CardContent className="p-3">
-                              <div className="flex justify-between">
-                                <span className="font-bold">{item.time}</span>
-                                <span className="font-medium">{item.location}</span>
-                              </div>
-                              <div className="font-semibold mt-1">{item.className}</div>
-                              <div className="text-sm mt-1">Trainer: {item.trainer}</div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 bg-gray-50 rounded">No PDF classes for {day}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </ScrollArea>
-      </div>
-    );
-  };
-  
-  const renderCalendarView = () => {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const visibleDays = filters.day.length > 0 ? filters.day : days;
-    
-    // Check if we have any data to display
-    if (!csvData && !pdfData) {
-      return (
-        <div className="mt-4 p-8 text-center">
-          <div className="text-gray-500 text-lg mb-4">📅 No schedule data available</div>
-          <p className="text-gray-400">Upload CSV or PDF data to view the calendar.</p>
-        </div>
-      );
+  // Collect all aligned data for all days
+  const allAlignedData: AlignedRow[] = [];
+  allDays.forEach(day => {
+    allAlignedData.push(...buildAlignedDayData(day));
+  });
+
+  // Calculate totals for quick filter badges
+  let totalMatches = 0;
+  let totalTrainerMismatch = 0;
+  let totalClassMismatch = 0;
+  let totalTimeMismatch = 0;
+  let totalCsvOnly = 0;
+  let totalPdfOnly = 0;
+
+  allAlignedData.forEach(row => {
+    switch (row.matchStatus) {
+      case 'match': totalMatches++; break;
+      case 'trainer-mismatch': totalTrainerMismatch++; break;
+      case 'class-mismatch': totalClassMismatch++; break;
+      case 'time-mismatch': totalTimeMismatch++; break;
+      case 'csv-only': totalCsvOnly++; break;
+      case 'pdf-only': totalPdfOnly++; break;
     }
+  });
+
+  const totalMismatches = totalTrainerMismatch + totalClassMismatch + totalTimeMismatch;
+
+  // Apply quick filter
+  const filterRows = (rows: AlignedRow[]): AlignedRow[] => {
+    if (quickFilter === 'all') return rows;
+    if (quickFilter === 'matches') return rows.filter(row => row.matchStatus === 'match');
+    return rows.filter(row => row.matchStatus === quickFilter);
+  };
+
+  // Get status label for mismatch type
+  const getStatusLabel = (status: MismatchType): string => {
+    switch (status) {
+      case 'match': return 'Match';
+      case 'trainer-mismatch': return 'Trainer Mismatch';
+      case 'class-mismatch': return 'Class Mismatch';
+      case 'time-mismatch': return 'Time Mismatch';
+      case 'csv-only': return 'Not in PDF';
+      case 'pdf-only': return 'Not in CSV';
+    }
+  };
+
+  // Get status icon and label
+  const getStatusInfo = (status: MismatchType): { icon: React.ReactNode; label: string; color: string } => {
+    switch (status) {
+      case 'match':
+        return { 
+          icon: <CheckCircle2 className="w-4 h-4 text-green-600" />, 
+          label: 'Match',
+          color: 'text-green-600'
+        };
+      case 'trainer-mismatch':
+        return { 
+          icon: <Users className="w-4 h-4 text-orange-500" />, 
+          label: 'Trainer',
+          color: 'text-orange-500'
+        };
+      case 'class-mismatch':
+        return { 
+          icon: <BookOpen className="w-4 h-4 text-purple-500" />, 
+          label: 'Class',
+          color: 'text-purple-500'
+        };
+      case 'time-mismatch':
+        return { 
+          icon: <Clock className="w-4 h-4 text-amber-500" />, 
+          label: 'Time',
+          color: 'text-amber-500'
+        };
+      case 'csv-only':
+        return { 
+          icon: <FileSpreadsheet className="w-4 h-4 text-blue-600" />, 
+          label: 'CSV Only',
+          color: 'text-blue-600'
+        };
+      case 'pdf-only':
+        return { 
+          icon: <FileText className="w-4 h-4 text-red-600" />, 
+          label: 'PDF Only',
+          color: 'text-red-600'
+        };
+    }
+  };
+
+  // Copy mismatched rows to clipboard as HTML table with inline styles
+  const copyMismatchesToClipboard = () => {
+    const mismatchedRows = allAlignedData.filter(row => row.matchStatus !== 'match');
     
-    // Extract all unique hours from the data to create a dynamic time grid
-    const allTimes = new Set<number>();
-    
-    // Parse times from CSV data
-    if (filteredCsvData.length > 0) {
-      filteredCsvData.forEach(cls => {
-        if (cls.timeDate) {
-          allTimes.add(cls.timeDate.getHours());
-        }
+    if (mismatchedRows.length === 0) {
+      toast({
+        title: "No Mismatches",
+        description: "There are no mismatched rows to copy.",
+        variant: "default",
       });
+      return;
     }
-    
-    // Parse times from PDF data
-    if (filteredPdfData.length > 0) {
-      filteredPdfData.forEach(cls => {
-        const timeMatch = cls.time.match(/(\d{1,2})[:.:]?(\d{2})?\s*(am|pm)?/i);
-        if (timeMatch) {
-          let hour = parseInt(timeMatch[1]);
-          const period = timeMatch[3];
-          
-          if (period) {
-            if (period.toLowerCase() === 'pm' && hour !== 12) {
-              hour += 12;
-            } else if (period.toLowerCase() === 'am' && hour === 12) {
-              hour = 0;
-            }
-          }
-          allTimes.add(hour);
-        }
-      });
-    }
-    
-    // Create hour range from data or use default
-    const hours = allTimes.size > 0 
-      ? Array.from(allTimes).sort((a, b) => a - b)
-      : Array.from(Array(15).keys()).map(i => i + 6); // Default 6am to 8pm
-    
-    // Helper function to check if a class belongs to a specific hour
-    const isClassInHour = (classTime: string | Date, targetHour: number): boolean => {
-      if (classTime instanceof Date) {
-        return classTime.getHours() === targetHour;
-      }
+
+    // Build HTML table with inline styles
+    const html = `
+<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; width: 100%;">
+  <thead>
+    <tr style="background-color: #374151; color: white;">
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Day</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #3b82f6;">CSV Time</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #3b82f6;">CSV Class</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #3b82f6;">CSV Trainer</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #3b82f6;">CSV Location</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; background-color: #6b7280;">Status</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #ef4444;">PDF Time</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #ef4444;">PDF Class</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #ef4444;">PDF Trainer</th>
+      <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left; background-color: #ef4444;">PDF Location</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${mismatchedRows.map(row => {
+      const statusLabel = getStatusLabel(row.matchStatus);
+      const statusColor = row.matchStatus === 'trainer-mismatch' ? '#f97316' :
+                          row.matchStatus === 'class-mismatch' ? '#a855f7' :
+                          row.matchStatus === 'time-mismatch' ? '#f59e0b' :
+                          row.matchStatus === 'csv-only' ? '#3b82f6' :
+                          row.matchStatus === 'pdf-only' ? '#ef4444' : '#22c55e';
       
-      // Parse string time
-      const timeMatch = classTime.match(/(\d{1,2})[:.:]?(\d{2})?\s*(am|pm)?/i);
-      if (timeMatch) {
-        let hour = parseInt(timeMatch[1]);
-        const period = timeMatch[3];
-        
-        if (period) {
-          if (period.toLowerCase() === 'pm' && hour !== 12) {
-            hour += 12;
-          } else if (period.toLowerCase() === 'am' && hour === 12) {
-            hour = 0;
-          }
-        }
-        return hour === targetHour;
-      }
-      return false;
-    };
+      return `
+    <tr style="background-color: white;">
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.day}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.csvClass?.time || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.csvClass?.className || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.csvClass?.trainer1 || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.csvClass?.location || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center; color: ${statusColor}; font-weight: bold;">${statusLabel}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.pdfClass?.time || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.pdfClass?.className || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.pdfClass?.trainer || '—'}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px;">${row.pdfClass?.location || '—'}</td>
+    </tr>`;
+    }).join('')}
+  </tbody>
+</table>`;
+
+    // Copy as HTML with fallback to plain text
+    const plainText = mismatchedRows.map(row => 
+      `${row.day}\t${row.csvClass?.time || '—'}\t${row.csvClass?.className || '—'}\t${row.csvClass?.trainer1 || '—'}\t${row.csvClass?.location || '—'}\t${getStatusLabel(row.matchStatus)}\t${row.pdfClass?.time || '—'}\t${row.pdfClass?.className || '—'}\t${row.pdfClass?.trainer || '—'}\t${row.pdfClass?.location || '—'}`
+    ).join('\n');
+
+    const header = 'Day\tCSV Time\tCSV Class\tCSV Trainer\tCSV Location\tStatus\tPDF Time\tPDF Class\tPDF Trainer\tPDF Location';
+    const textWithHeader = header + '\n' + plainText;
+
+    // Use the Clipboard API with HTML
+    const blob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([textWithHeader], { type: 'text/plain' });
     
-    return (
-      <div className="mt-4 flex-1 min-h-0 overflow-auto">
-        <ScrollArea className="h-full">
-          <div className="min-w-[800px]">
-            <div className="grid gap-1" style={{ gridTemplateColumns: `120px repeat(${visibleDays.length}, 1fr)` }}>
-              {/* Header row */}
-              <div className="font-semibold p-3 bg-gray-200 sticky left-0 z-10 border-r border-gray-300">
-                Time
-              </div>
-              {visibleDays.map(day => (
-                <div key={`header-${day}`} className="font-semibold p-3 text-center bg-gray-200 border-r border-gray-300">
-                  <div className="text-sm">{day.substring(0, 3)}</div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    {filteredCsvData.filter(c => c.day === day).length + 
-                     filteredPdfData.filter(c => c.day === day).length} classes
-                  </div>
-                </div>
-              ))}
-              
-              {/* Time slots */}
-              {hours.map(hour => (
-                <React.Fragment key={`hour-${hour}`}>
-                  <div className="p-3 border-t border-gray-200 bg-gray-50 sticky left-0 z-10 text-sm font-medium border-r border-gray-300">
-                    {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour-12} PM` : `${hour} AM`}
-                  </div>
-                  
-                  {visibleDays.map(day => {
-                    try {
-                      // Get classes for this day and hour
-                      const csvClasses = filteredCsvData.filter(c => 
-                        c && c.day === day && isClassInHour(c.timeDate || c.time, hour)
-                      );
-                      const pdfClasses = filteredPdfData.filter(c => 
-                        c && c.day === day && isClassInHour(c.time, hour)
-                      );
-                    
-                      return (
-                        <div key={`cell-${day}-${hour}`} className="border-t border-gray-200 border-r border-gray-300 p-2 min-h-[100px] relative bg-white">
-                          {/* CSV Classes */}
-                          {csvClasses.map((cls, i) => (
-                            <div key={`csv-${i}`} className="mb-2 p-2 text-xs bg-blue-100 border border-blue-200 rounded shadow-sm">
-                              <div className="font-bold text-blue-800 mb-1">{cls.className}</div>
-                              <div className="text-blue-600">{cls.time}</div>
-                              <div className="text-blue-700 font-medium">{cls.trainer1}</div>
-                              <div className="text-blue-500 text-xs">{cls.location}</div>
-                              <div className="text-xs text-blue-400 mt-1">📊 CSV</div>
-                            </div>
-                          ))}
-                          
-                          {/* PDF Classes (only if not matching CSV) */}
-                          {pdfClasses.filter(pdf => {
-                            try {
-                              return !csvClasses.some(csv => 
-                                csv.className === pdf.className
-                              );
-                            } catch (error) {
-                              console.error('Error filtering PDF classes:', error);
-                              return true;
-                            }
-                          }).map((cls, i) => (
-                            <div key={`pdf-${i}`} className="mb-2 p-2 text-xs bg-red-100 border border-red-200 rounded shadow-sm">
-                              <div className="font-bold text-red-800 mb-1">{cls.className}</div>
-                              <div className="text-red-600">{cls.time}</div>
-                              <div className="text-red-700 font-medium">{cls.trainer}</div>
-                              <div className="text-red-500 text-xs">{cls.location}</div>
-                              <div className="text-xs text-red-400 mt-1">📋 PDF</div>
-                            </div>
-                          ))}
-                          
-                          {/* Empty state */}
-                          {csvClasses.length === 0 && pdfClasses.length === 0 && (
-                            <div className="text-gray-400 text-xs italic">No classes</div>
-                          )}
-                        </div>
-                      );
-                    } catch (error) {
-                      console.error('Error rendering calendar cell:', error);
-                      return (
-                        <div key={`cell-${day}-${hour}`} className="border-t border-gray-200 border-r border-gray-300 p-2 min-h-[100px] relative bg-white">
-                          <div className="text-red-400 text-xs italic">Error loading data</div>
-                        </div>
-                      );
-                    }
-                  })}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        </ScrollArea>
-        
-        {/* Legend */}
-        <div className="mt-4 p-3 bg-gray-50 border rounded-lg">
-          <div className="text-sm font-medium mb-2">Legend:</div>
-          <div className="flex gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-100 border border-blue-200 rounded"></div>
-              <span>📊 CSV Data</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
-              <span>📋 PDF Data (unique to PDF)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': blob,
+        'text/plain': textBlob
+      })
+    ]).then(() => {
+      setCopied(true);
+      toast({
+        title: "Copied to Clipboard",
+        description: `${mismatchedRows.length} mismatched rows copied as a formatted table.`,
+      });
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+      // Fallback to plain text
+      navigator.clipboard.writeText(textWithHeader).then(() => {
+        setCopied(true);
+        toast({
+          title: "Copied to Clipboard",
+          description: `${mismatchedRows.length} mismatched rows copied as plain text.`,
+        });
+        setTimeout(() => setCopied(false), 2000);
+      });
+    });
   };
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0">
-        <FilterSection 
-          data={csvData}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          isComparisonView
-        />
+        {/* Collapsible Filters */}
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between mb-2">
+              <span className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filters {filters.location.length > 0 && `(Location: ${filters.location.join(', ')})`}
+              </span>
+              {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <FilterSection 
+              data={csvData}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              isComparisonView
+            />
+          </CollapsibleContent>
+        </Collapsible>
         
-        <div className="flex flex-wrap justify-between items-center gap-4 mt-4">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full">
-            <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-              <TabsTrigger value="table">📊 Table</TabsTrigger>
-              <TabsTrigger value="cards">🗃️ Cards</TabsTrigger>
-              <TabsTrigger value="compact">📋 Compact</TabsTrigger>
-              <TabsTrigger value="detailed">📝 Detailed</TabsTrigger>
-              <TabsTrigger value="calendar">📅 Calendar</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        {/* Quick Filter Buttons */}
+        <div className="flex flex-wrap gap-2 mt-2 p-3 bg-gray-50 rounded-lg border">
+          <span className="text-sm font-medium text-gray-600 mr-2 flex items-center">Quick Filter:</span>
+          
+          <Button
+            variant={quickFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('all')}
+            className="gap-1"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+            All ({totalMatches + totalMismatches + totalCsvOnly + totalPdfOnly})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'matches' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('matches')}
+            className={`gap-1 ${quickFilter === 'matches' ? 'bg-green-600 hover:bg-green-700' : 'hover:bg-green-50 hover:border-green-300'}`}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Matches ({totalMatches})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'trainer-mismatch' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('trainer-mismatch')}
+            className={`gap-1 ${quickFilter === 'trainer-mismatch' ? 'bg-orange-500 hover:bg-orange-600' : 'hover:bg-orange-50 hover:border-orange-300'}`}
+          >
+            <Users className="w-4 h-4" />
+            Trainer Mismatch ({totalTrainerMismatch})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'class-mismatch' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('class-mismatch')}
+            className={`gap-1 ${quickFilter === 'class-mismatch' ? 'bg-purple-500 hover:bg-purple-600' : 'hover:bg-purple-50 hover:border-purple-300'}`}
+          >
+            <BookOpen className="w-4 h-4" />
+            Class Mismatch ({totalClassMismatch})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'time-mismatch' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('time-mismatch')}
+            className={`gap-1 ${quickFilter === 'time-mismatch' ? 'bg-amber-500 hover:bg-amber-600' : 'hover:bg-amber-50 hover:border-amber-300'}`}
+          >
+            <Clock className="w-4 h-4" />
+            Time Mismatch ({totalTimeMismatch})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'csv-only' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('csv-only')}
+            className={`gap-1 ${quickFilter === 'csv-only' ? 'bg-blue-600 hover:bg-blue-700' : 'hover:bg-blue-50 hover:border-blue-300'}`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Not in PDF ({totalCsvOnly})
+          </Button>
+          
+          <Button
+            variant={quickFilter === 'pdf-only' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setQuickFilter('pdf-only')}
+            className={`gap-1 ${quickFilter === 'pdf-only' ? 'bg-red-600 hover:bg-red-700' : 'hover:bg-red-50 hover:border-red-300'}`}
+          >
+            <FileText className="w-4 h-4" />
+            Not in CSV ({totalPdfOnly})
+          </Button>
         </div>
         
-        {/* Only show pagination controls for non-table views */}
-        {viewMode !== 'table' && (
-          <div className="flex justify-between items-center mt-4 p-3 glass-card rounded-lg animate-fadeIn">
-            <div className="flex items-center gap-4">
-              <div>
-                <label htmlFor="perPage" className="mr-2 text-sm font-medium">Items per page:</label>
-                <select
-                  id="perPage"
-                  value={itemsPerPage}
-                  onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                  className="border rounded px-2 py-1 text-sm input-glass"
-                >
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                </select>
-              </div>
-              
-              <div>
-                <span className="text-sm font-medium">
-                  {currentPage} of {totalPages} pages
-                </span>
-              </div>
-            </div>
-            
-            <div className="text-sm font-medium text-gray-600">
-              CSV: {filteredCsvData.length} classes | PDF: {filteredPdfData.length} classes
-            </div>
+        {/* Summary with Copy Button */}
+        <div className="flex justify-between items-center mt-3 p-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={copyMismatchesToClipboard}
+            className="gap-2"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+            {copied ? 'Copied!' : 'Copy Mismatches'}
+          </Button>
+          <div className="text-sm text-gray-600">
+            📊 CSV: <span className="font-semibold text-blue-600 mx-1">{filteredCsvData.length}</span> classes | 
+            📋 PDF: <span className="font-semibold text-red-600 mx-1">{filteredPdfData.length}</span> classes
           </div>
-        )}
-        
-        {/* Show summary for table view */}
-        {viewMode === 'table' && (
-          <div className="flex justify-end mt-4 p-3 glass-card rounded-lg animate-fadeIn">
-            <div className="text-sm font-medium text-foreground">
-              📊 CSV: <span className="text-blue-600 font-semibold">{filteredCsvData.length}</span> classes | 
-              📋 PDF: <span className="text-red-600 font-semibold">{filteredPdfData.length}</span> classes
-            </div>
-          </div>
-        )}
+        </div>
       </div>
       
-      {/* Main content area - this will expand to fill available space */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {viewMode === 'table' && renderTableView()}
-        {viewMode === 'cards' && renderCardsView()}
-        {viewMode === 'compact' && renderCompactView()}
-        {viewMode === 'detailed' && renderDetailedView()}
-        {viewMode === 'calendar' && renderCalendarView()}
+      {/* Table View with auto-fit columns */}
+      <div className="flex-1 flex flex-col min-h-0 border rounded-lg overflow-hidden mt-2">
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-auto"
+        >
+          {allDays.map(day => {
+            const alignedData = buildAlignedDayData(day);
+            const displayData = filterRows(alignedData);
+            
+            if (displayData.length === 0) return null;
+            
+            const matchCount = alignedData.filter(s => s.matchStatus === 'match').length;
+            const mismatchCount = alignedData.filter(s => 
+              s.matchStatus === 'trainer-mismatch' || 
+              s.matchStatus === 'class-mismatch' || 
+              s.matchStatus === 'time-mismatch'
+            ).length;
+            
+            return (
+              <div key={`aligned-${day}`} className="border-b-2 border-gray-300">
+                {/* Day Header */}
+                <div className="sticky top-0 bg-gray-800 px-4 py-2 font-semibold text-white border-b border-gray-200 z-20 h-10 flex items-center justify-between">
+                  <span>{day}</span>
+                  <span className="text-sm font-normal flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      {matchCount}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      {mismatchCount}
+                    </span>
+                  </span>
+                </div>
+                
+                {/* Table Header - using table for proper column sizing */}
+                <table className="w-full table-auto border-collapse">
+                  <thead className="sticky top-10 z-10">
+                    <tr className="bg-gray-100 border-b border-gray-300">
+                      {/* CSV Headers */}
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r border-gray-300 bg-blue-50 whitespace-nowrap">Time</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r border-gray-300 bg-blue-50 whitespace-nowrap">Class</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r border-gray-300 bg-blue-50 whitespace-nowrap">Trainer</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r-2 border-gray-400 bg-blue-50 whitespace-nowrap">Location</th>
+                      {/* Status column */}
+                      <th className="px-3 py-2 text-xs font-bold text-gray-600 text-center bg-gray-200 whitespace-nowrap" style={{ minWidth: '100px' }}>Status</th>
+                      {/* PDF Headers */}
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-l-2 border-gray-400 border-r border-gray-300 bg-red-50 whitespace-nowrap">Time</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r border-gray-300 bg-red-50 whitespace-nowrap">Class</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left border-r border-gray-300 bg-red-50 whitespace-nowrap">Trainer</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-700 text-left bg-red-50 whitespace-nowrap">Location</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayData.length > 0 ? (
+                      displayData.map((slot, idx) => {
+                        const statusInfo = getStatusInfo(slot.matchStatus);
+                        const isTrainerMismatch = slot.matchStatus === 'trainer-mismatch';
+                        const isClassMismatch = slot.matchStatus === 'class-mismatch';
+                        const isTimeMismatch = slot.matchStatus === 'time-mismatch';
+                        
+                        return (
+                          <tr 
+                            key={`row-${day}-${idx}`} 
+                            className="border-b border-gray-200 bg-white hover:bg-gray-50"
+                          >
+                            {/* CSV Side */}
+                            <td className={`px-3 py-2 text-xs font-mono whitespace-nowrap border-r border-gray-200 ${isTimeMismatch ? 'text-amber-600 font-semibold' : 'text-gray-800'} ${!slot.csvClass ? 'bg-gray-50' : ''}`}>
+                              {slot.csvClass?.time || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-r border-gray-200 ${isClassMismatch ? 'text-purple-600 font-semibold' : 'text-gray-800'} ${!slot.csvClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.csvClass?.className}>
+                              {slot.csvClass?.className || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs whitespace-nowrap border-r border-gray-200 ${isTrainerMismatch ? 'text-orange-600 font-semibold' : 'text-gray-700'} ${!slot.csvClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.csvClass?.trainer1}>
+                              {slot.csvClass?.trainer1 || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs whitespace-nowrap border-r-2 border-gray-400 text-gray-600 ${!slot.csvClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.csvClass?.location}>
+                              {slot.csvClass?.location || '—'}
+                            </td>
+                            
+                            {/* Status Indicator */}
+                            <td className="px-3 py-2 text-center bg-gray-50 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1">
+                                {statusInfo.icon}
+                                <span className={`text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                              </div>
+                            </td>
+                            
+                            {/* PDF Side */}
+                            <td className={`px-3 py-2 text-xs font-mono whitespace-nowrap border-l-2 border-gray-400 border-r border-gray-200 ${isTimeMismatch ? 'text-amber-600 font-semibold' : 'text-gray-800'} ${!slot.pdfClass ? 'bg-gray-50' : ''}`}>
+                              {slot.pdfClass?.time || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-r border-gray-200 ${isClassMismatch ? 'text-purple-600 font-semibold' : 'text-gray-800'} ${!slot.pdfClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.pdfClass?.className}>
+                              {slot.pdfClass?.className || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs whitespace-nowrap border-r border-gray-200 ${isTrainerMismatch ? 'text-orange-600 font-semibold' : 'text-gray-700'} ${!slot.pdfClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.pdfClass?.trainer}>
+                              {slot.pdfClass?.trainer || '—'}
+                            </td>
+                            <td className={`px-3 py-2 text-xs whitespace-nowrap text-gray-600 ${!slot.pdfClass ? 'bg-gray-50 text-gray-400 italic' : ''}`} title={slot.pdfClass?.location}>
+                              {slot.pdfClass?.location || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9} className="h-12 text-center text-gray-500 text-sm bg-white">No classes for this day</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
       </div>
       
-      {/* Only show pagination for non-table views that use pagination */}
-      {viewMode !== 'table' && totalPages > 1 && (
-        <Pagination className="mt-4">
-          <PaginationContent>
-            <PaginationItem>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrevPage}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-            </PaginationItem>
-            
-            {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
-              let pageNum: number;
-              
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-              
-              if (pageNum > 0 && pageNum <= totalPages) {
-                return (
-                  <PaginationItem key={pageNum}>
-                    <PaginationLink 
-                      isActive={pageNum === currentPage}
-                      onClick={() => handlePageClick(pageNum)}
-                    >
-                      {pageNum}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              }
-              return null;
-            })}
-            
-            <PaginationItem>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+      {/* Legend */}
+      <div className="flex-shrink-0 mt-3 p-3 bg-gray-50 border rounded-lg">
+        <div className="text-sm font-medium mb-2 text-gray-700">Legend:</div>
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <span className="text-gray-700">Match - All fields align</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-orange-500" />
+            <span className="text-gray-700">Trainer Mismatch</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-purple-500" />
+            <span className="text-gray-700">Class Mismatch</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span className="text-gray-700">Time Mismatch</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+            <span className="text-gray-700">Not in PDF</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-red-600" />
+            <span className="text-gray-700">Not in CSV</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

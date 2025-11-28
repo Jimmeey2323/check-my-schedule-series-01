@@ -5,7 +5,7 @@
 
 import { PdfClassData } from '@/types/schedule';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAq_QgITLnhKtvKrFhOw-rvHc0G8FURgPM';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAi5Rbe5dPf7cIO64bG8tbiVnoeVTYx-2k';
 
 // Use Gemini 2.0 Flash for vision tasks - it's fast and supports multimodal
 const GEMINI_VISION_MODEL = 'gemini-2.0-flash';
@@ -80,16 +80,24 @@ IMPORTANT EXTRACTION RULES:
 2. The schedule is organized by days of the week (Monday through Sunday)
 3. Each class entry typically has: Time, Class Name, and Trainer Name
 4. Class names may include: Barre 57, Mat 57, PowerCycle, FIT, HIIT, Strength Lab, Cardio Barre, Back Body Blaze, Recovery, Foundations, SWEAT In 30, Amped Up!, etc.
-5. Times are in 12-hour format (e.g., 7:30 AM, 5:00 PM)
-6. Trainer names are usually first names or full names
-7. Some classes may have themes like "SLAY SUNDAY", "GLUTES GALORE", "BATTLE OF THE BANDS", etc.
-8. The schedule may have columns for different days side by side
-9. OCR might have errors - use context to fix obvious mistakes:
+5. EXPRESS CLASSES ARE VERY IMPORTANT - Look for classes with "EXPRESS" or "EXP" in the name like:
+   - Cardio Barre Express
+   - Mat 57 Express
+   - Barre 57 Express
+   - Back Body Blaze Express
+   - PowerCycle Express
+   - Any class followed by EXPRESS or EXP
+6. Times are in 12-hour format (e.g., 7:30 AM, 5:00 PM)
+7. Trainer names are usually first names or full names
+8. Some classes may have themes like "SLAY SUNDAY", "GLUTES GALORE", "BATTLE OF THE BANDS", etc.
+9. The schedule may have columns for different days side by side
+10. OCR might have errors - use context to fix obvious mistakes:
    - "MATS7" or "MAT S7" should be "Mat 57"
    - "BARRES7" or "BARRE S7" should be "Barre 57"  
    - "FT" or "F IT" should be "FIT"
    - "powerCycle" should be "PowerCycle"
    - Time like "730AM" should be "7:30 AM"
+   - "EXP" or "EXPR" should be "Express"
 
 Return a JSON object with this EXACT structure:
 {
@@ -109,6 +117,7 @@ If a class has a theme, include it. Otherwise use null for theme.
 Ensure day names are capitalized properly: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
 Ensure times are formatted as "H:MM AM" or "H:MM PM" (e.g., "7:30 AM", "10:00 AM", "5:45 PM").
 Add "Studio " prefix to class names if not present (e.g., "Barre 57" becomes "Studio Barre 57").
+ALWAYS include "Express" in class names where it appears (e.g., "Mat 57 Express" not just "Mat 57").
 
 Extract ALL classes visible in the image. Be thorough.`;
 
@@ -142,7 +151,7 @@ Extract ALL classes visible in the image. Be thorough.`;
             }],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 8192,
+              maxOutputTokens: 32768,
               responseMimeType: 'application/json'
             }
           }),
@@ -199,13 +208,63 @@ Extract ALL classes visible in the image. Be thorough.`;
       }
       parsedData = JSON.parse(jsonStr.trim());
     } catch (parseError) {
-      console.error('Failed to parse Gemini JSON response:', textContent);
-      return {
-        success: false,
-        classes: [],
-        rawText: textContent,
-        error: 'Failed to parse JSON response'
-      };
+      console.warn('Initial JSON parse failed, attempting to recover truncated data...');
+      
+      // Try to recover partial data from truncated JSON
+      let jsonStr = textContent.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.slice(7);
+      if (jsonStr.startsWith('```')) jsonStr = jsonStr.slice(3);
+      
+      // Method 1: Use regex to extract complete class objects
+      const classRegex = /\{\s*"day"\s*:\s*"([^"]+)"\s*,\s*"time"\s*:\s*"([^"]+)"\s*,\s*"className"\s*:\s*"([^"]+)"\s*,\s*"trainer"\s*:\s*"([^"]+)"\s*,\s*"theme"\s*:\s*(null|"[^"]*")\s*\}/g;
+      const matches = [...jsonStr.matchAll(classRegex)];
+      
+      if (matches.length > 0) {
+        parsedData = {
+          classes: matches.map(m => ({
+            day: m[1],
+            time: m[2],
+            className: m[3],
+            trainer: m[4],
+            theme: m[5] === 'null' ? null : m[5]?.replace(/"/g, '')
+          }))
+        };
+        console.log(`Regex extraction recovered ${parsedData.classes.length} classes from truncated response`);
+      } else {
+        // Method 2: Try to fix truncated JSON by closing brackets
+        let fixedJson = jsonStr;
+        
+        // Remove any incomplete last object
+        const lastCompleteObj = fixedJson.lastIndexOf('},');
+        const lastObj = fixedJson.lastIndexOf('}');
+        
+        if (lastCompleteObj > 0 && lastCompleteObj < lastObj) {
+          // There's an incomplete object at the end
+          fixedJson = fixedJson.substring(0, lastCompleteObj + 1);
+        } else if (lastObj > 0) {
+          fixedJson = fixedJson.substring(0, lastObj + 1);
+        }
+        
+        // Add missing closing brackets
+        if (!fixedJson.includes(']}')) {
+          fixedJson += ']}';
+        } else if (!fixedJson.endsWith('}')) {
+          fixedJson += '}';
+        }
+        
+        try {
+          parsedData = JSON.parse(fixedJson);
+          console.log(`Fixed truncated JSON, recovered ${parsedData.classes?.length || 0} classes`);
+        } catch (fixError) {
+          console.error('Failed to recover truncated JSON:', textContent.substring(0, 500) + '...');
+          return {
+            success: false,
+            classes: [],
+            rawText: textContent,
+            error: 'Failed to parse JSON response - data was truncated'
+          };
+        }
+      }
     }
 
     const classes = (parsedData.classes || []).map((cls: any) => ({
@@ -310,6 +369,12 @@ function normalizeClassName(name: string): string {
   normalized = normalized.replace(/powerCycle/gi, 'PowerCycle');
   normalized = normalized.replace(/POWERCYCLE/gi, 'PowerCycle');
   
+  // Normalize EXPRESS variations
+  normalized = normalized.replace(/\bEXP\b/gi, 'Express');
+  normalized = normalized.replace(/\bEXPR\b/gi, 'Express');
+  normalized = normalized.replace(/\(EXPRESS\)/gi, 'Express');
+  normalized = normalized.replace(/\(EXP\)/gi, 'Express');
+  
   // Add "Studio " prefix if not present
   if (!normalized.toLowerCase().startsWith('studio ')) {
     normalized = 'Studio ' + normalized;
@@ -317,23 +382,41 @@ function normalizeClassName(name: string): string {
   
   // Proper capitalization for common class names
   const classPatterns: [RegExp, string][] = [
-    [/studio barre 57/gi, 'Studio Barre 57'],
+    // Express classes first (more specific patterns)
     [/studio barre 57 express/gi, 'Studio Barre 57 Express'],
-    [/studio mat 57/gi, 'Studio Mat 57'],
     [/studio mat 57 express/gi, 'Studio Mat 57 Express'],
+    [/studio powercycle express/gi, 'Studio PowerCycle Express'],
+    [/studio power cycle express/gi, 'Studio PowerCycle Express'],
+    [/studio cardio barre express/gi, 'Studio Cardio Barre Express'],
+    [/studio cardio b express/gi, 'Studio Cardio Barre Express'],
+    [/studio back body blaze express/gi, 'Studio Back Body Blaze Express'],
+    [/studio bbb express/gi, 'Studio Back Body Blaze Express'],
+    [/studio fit express/gi, 'Studio FIT Express'],
+    [/studio hiit express/gi, 'Studio HIIT Express'],
+    // Regular classes
+    [/studio barre 57/gi, 'Studio Barre 57'],
+    [/studio mat 57/gi, 'Studio Mat 57'],
     [/studio fit/gi, 'Studio FIT'],
     [/studio hiit/gi, 'Studio HIIT'],
     [/studio powercycle/gi, 'Studio PowerCycle'],
-    [/studio powercycle express/gi, 'Studio PowerCycle Express'],
-    [/studio cardio barre/gi, 'Studio Cardio Barre'],
+    [/studio power cycle/gi, 'Studio PowerCycle'],
     [/studio cardio barre plus/gi, 'Studio Cardio Barre Plus'],
-    [/studio cardio barre express/gi, 'Studio Cardio Barre Express'],
+    [/studio cardio barre/gi, 'Studio Cardio Barre'],
     [/studio back body blaze/gi, 'Studio Back Body Blaze'],
-    [/studio back body blaze express/gi, 'Studio Back Body Blaze Express'],
-    [/studio strength lab/gi, 'Studio Strength Lab'],
+    [/studio bbb/gi, 'Studio Back Body Blaze'],
     [/studio strength lab \(full body\)/gi, 'Studio Strength Lab (Full Body)'],
     [/studio strength lab \(push\)/gi, 'Studio Strength Lab (Push)'],
     [/studio strength lab \(pull\)/gi, 'Studio Strength Lab (Pull)'],
+    [/studio strength \(full body\)/gi, 'Studio Strength Lab (Full Body)'],
+    [/studio strength \(push\)/gi, 'Studio Strength Lab (Push)'],
+    [/studio strength \(pull\)/gi, 'Studio Strength Lab (Pull)'],
+    [/strength lab \(full body\)/gi, 'Studio Strength Lab (Full Body)'],
+    [/strength lab \(push\)/gi, 'Studio Strength Lab (Push)'],
+    [/strength lab \(pull\)/gi, 'Studio Strength Lab (Pull)'],
+    [/strength \(full body\)/gi, 'Studio Strength Lab (Full Body)'],
+    [/strength \(push\)/gi, 'Studio Strength Lab (Push)'],
+    [/strength \(pull\)/gi, 'Studio Strength Lab (Pull)'],
+    [/studio strength lab/gi, 'Studio Strength Lab'],
     [/studio recovery/gi, 'Studio Recovery'],
     [/studio foundations/gi, 'Studio Foundations'],
     [/studio sweat in 30/gi, 'Studio SWEAT In 30'],
