@@ -4,12 +4,32 @@ import cors from 'cors';
 const app = express();
 const port = 3001;
 
-const GEMINI_API_KEY = 'AIzaSyAq_QgITLnhKtvKrFhOw-rvHc0G8FURgPM';
-const MODEL_ID = 'gemini-1.5-pro';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAi5Rbe5dPf7cIO64bG8tbiVnoeVTYx-2k';
+const MODEL_ID = 'gemini-2.5-pro';
 const GENERATE_CONTENT_API = 'generateContent';
 
 app.use(cors());
 app.use(express.json());
+
+// Simple rate limiting for API calls
+const requestTimes = [];
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_MINUTE = 10;
+
+function checkRateLimit() {
+  const now = Date.now();
+  // Remove old requests outside the window
+  while (requestTimes.length > 0 && requestTimes[0] < now - RATE_LIMIT_WINDOW) {
+    requestTimes.shift();
+  }
+  
+  if (requestTimes.length >= MAX_REQUESTS_PER_MINUTE) {
+    return false; // Rate limited
+  }
+  
+  requestTimes.push(now);
+  return true; // OK to proceed
+}
 
 // Schedule data processing utilities
 const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -242,8 +262,105 @@ function generateScheduleInsights(scheduleData) {
 app.use(cors());
 app.use(express.json());
 
+// API status endpoint
+app.get('/api/status', (req, res) => {
+  const now = Date.now();
+  const recentRequests = requestTimes.filter(time => time > now - RATE_LIMIT_WINDOW);
+  
+  res.json({
+    status: 'running',
+    rateLimit: {
+      window: RATE_LIMIT_WINDOW / 1000 + ' seconds',
+      maxRequests: MAX_REQUESTS_PER_MINUTE,
+      currentRequests: recentRequests.length,
+      remaining: MAX_REQUESTS_PER_MINUTE - recentRequests.length
+    },
+    model: MODEL_ID,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Hugging Face OCR proxy endpoint to avoid CORS issues
+app.post('/api/huggingface-ocr', async (req, res) => {
+  try {
+    const { image } = req.body;
+    
+    if (!image) {
+      return res.status(400).json({ error: 'Image data is required' });
+    }
+    
+    console.log('🤖 Proxying request to Hugging Face OCR...');
+    
+    // Convert base64 to buffer for API
+    let imageBuffer;
+    if (typeof image === 'string') {
+      // If base64 string, convert to buffer
+      const base64Data = image.replace(/^data:image\/[a-z]+;base64,/, '');
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      return res.status(400).json({ error: 'Image must be base64 string' });
+    }
+    
+    const response = await fetch(
+      'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer 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',
+          'Content-Type': 'image/jpeg',
+        },
+        body: imageBuffer,
+      }
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Hugging Face API error:', response.status, errorText);
+      return res.status(response.status).json({
+        error: `Hugging Face API error: ${response.status}`,
+        details: errorText
+      });
+    }
+    
+    const result = await response.json();
+    console.log('✅ Hugging Face OCR result:', result);
+    
+    // Handle different response formats
+    let extractedText = '';
+    if (Array.isArray(result) && result[0]?.generated_text) {
+      extractedText = result[0].generated_text;
+    } else if (result?.generated_text) {
+      extractedText = result.generated_text;
+    } else if (typeof result === 'string') {
+      extractedText = result;
+    } else {
+      console.warn('⚠️ Unexpected Hugging Face response format:', result);
+      extractedText = JSON.stringify(result);
+    }
+    
+    res.json({ text: extractedText });
+    
+  } catch (error) {
+    console.error('❌ Hugging Face proxy error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
 app.post('/api/gemini', async (req, res) => {
   try {
+    // Check rate limit first
+    if (!checkRateLimit()) {
+      console.log('Rate limit exceeded for API request');
+      return res.status(429).json({ 
+        error: 'Rate limit exceeded', 
+        message: `Too many requests. Maximum ${MAX_REQUESTS_PER_MINUTE} requests per minute allowed.`,
+        retryAfter: 60
+      });
+    }
+    
     const { input } = req.body;
     
     if (!input) {
@@ -373,23 +490,49 @@ IMPORTANT INSTRUCTIONS:
     };
 
     console.log('Making request to Gemini API...');
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID}:${GENERATE_CONTENT_API}?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }
-    );
+    let response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID}:${GENERATE_CONTENT_API}?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+    } catch (networkError) {
+      console.error('Network error calling Gemini API:', networkError);
+      return res.status(503).json({
+        error: 'Network error',
+        message: 'Unable to connect to Gemini API',
+        details: networkError.message
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
+      
+      let errorMessage = `API Error: ${response.status}`;
+      let retryAfter = null;
+      
+      if (response.status === 429) {
+        errorMessage = 'Quota exceeded - Rate limit reached';
+        retryAfter = response.headers.get('Retry-After') || '60';
+        console.log(`Rate limited. Retry after: ${retryAfter} seconds`);
+      } else if (response.status === 403) {
+        errorMessage = 'API key invalid or quota exceeded';
+      } else if (response.status === 404) {
+        errorMessage = `Model ${MODEL_ID} not found`;
+      }
+      
       return res.status(response.status).json({ 
-        error: `API Error: ${response.status}`,
-        details: errorText
+        error: errorMessage,
+        details: errorText,
+        retryAfter: retryAfter,
+        timestamp: new Date().toISOString()
       });
     }
 

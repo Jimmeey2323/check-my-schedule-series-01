@@ -238,114 +238,280 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
       return aIndex - bIndex;
     });
 
-    return (
-      <div className="flex gap-4 mt-4 flex-1 min-h-0">
-        {/* CSV Table */}
-        <div className="flex-1 flex flex-col glass-card rounded-lg overflow-hidden animate-slideUp">
-          <div className="px-4 py-3 gradient-primary text-white font-semibold text-center">
-            📊 CSV Schedule ({filteredCsvData.length} classes)
-          </div>
-          <div 
-            ref={csvScrollRef}
-            className="flex-1 overflow-auto"
-            onScroll={handleCsvScroll}
-          >
-            {allDays.map(day => {
-              const dayClasses = groupedCsvData[day] || [];
-              return (
-                <div key={`csv-${day}`} className="border-b border-gray-100">
-                  <div className="sticky top-0 bg-blue-50 px-4 py-2 font-medium text-blue-800 border-b border-blue-200 z-10">
-                    {day} ({dayClasses.length} classes)
-                  </div>
-                  {dayClasses.length > 0 ? (
-                    <table className="w-full">
-                      <thead className="bg-blue-100 sticky top-8 z-10">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Time</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Class</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Trainer</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-blue-700">Location</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dayClasses.map((item, idx) => (
-                          <tr key={`csv-${day}-${idx}`} className="hover:bg-blue-50 border-b border-gray-100">
-                            <td className="px-3 py-2 text-sm">{item.time}</td>
-                            <td className="px-3 py-2 text-sm font-medium">{item.className}</td>
-                            <td className="px-3 py-2 text-sm">{item.trainer1}</td>
-                            <td className="px-3 py-2 text-sm">{item.location}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="px-4 py-8 text-center text-gray-500 text-sm">No classes for {day}</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+    // Helper function to parse time to minutes for sorting
+    const parseTimeToMinutes = (timeStr: string): number => {
+      if (!timeStr) return 0;
+      const match = timeStr.match(/(\d{1,2})[:.:](\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3]?.toUpperCase();
         
-        {/* PDF Table */}
-        <div className="flex-1 flex flex-col glass-card rounded-lg overflow-hidden animate-slideUp">
-          <div className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-center">
-            📋 PDF Schedule ({filteredPdfData.length} classes)
-          </div>
-          <div 
-            ref={pdfScrollRef}
-            className="flex-1 overflow-auto"
-            onScroll={handlePdfScroll}
-          >
-            {allDays.map(day => {
-              const dayClasses = groupedPdfData[day] || [];
-              return (
-                <div key={`pdf-${day}`} className="border-b border-gray-100">
-                  <div className="sticky top-0 bg-red-50 px-4 py-2 font-medium text-red-800 border-b border-red-200 z-10">
-                    {day} ({dayClasses.length} classes)
-                  </div>
-                  {dayClasses.length > 0 ? (
-                    <table className="w-full">
-                      <thead className="bg-red-100 sticky top-8 z-10">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Time</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Class</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Trainer</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-red-700">Location</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dayClasses.map((item, idx) => {
-                          // Check for mismatch with CSV data
-                          const csvMatch = groupedCsvData[day]?.find(csv => 
-                            csv.time === item.time && csv.className === item.className
-                          );
-                          const hasMismatch = csvMatch && csvMatch.trainer1 !== item.trainer;
-                          
-                          return (
-                            <tr 
-                              key={`pdf-${day}-${idx}`} 
-                              className={`hover:bg-red-50 border-b border-gray-100 ${hasMismatch ? 'bg-yellow-50' : ''}`}
-                            >
-                              <td className="px-3 py-2 text-sm">{item.time}</td>
-                              <td className="px-3 py-2 text-sm font-medium">{item.className}</td>
-                              <td className={`px-3 py-2 text-sm ${hasMismatch ? 'text-red-600 font-semibold' : ''}`}>
-                                {item.trainer}
-                                {hasMismatch && <span className="ml-1">⚠️</span>}
-                              </td>
-                              <td className="px-3 py-2 text-sm">{item.location}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="px-4 py-8 text-center text-gray-500 text-sm">No classes for {day}</div>
-                  )}
+        if (period === 'PM' && hours !== 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        return hours * 60 + minutes;
+      }
+      return 0;
+    };
+
+    // Helper function to format time consistently for comparison
+    const normalizeTimeKey = (timeStr: string): string => {
+      const minutes = parseTimeToMinutes(timeStr);
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    };
+
+    // Build unified aligned rows for each day
+    // Each row represents one class entry, aligned by time
+    const buildAlignedDayData = (day: string) => {
+      const csvClasses = [...(groupedCsvData[day] || [])].sort((a, b) => 
+        parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
+      );
+      const pdfClasses = [...(groupedPdfData[day] || [])].sort((a, b) => 
+        parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time)
+      );
+      
+      // Build a list of all unique time+class combinations
+      interface AlignedRow {
+        timeKey: string;
+        displayTime: string;
+        sortKey: number;
+        csvClass: ClassData | null;
+        pdfClass: PdfClassData | null;
+      }
+      
+      const alignedRows: AlignedRow[] = [];
+      const usedCsvIndices = new Set<number>();
+      const usedPdfIndices = new Set<number>();
+      
+      // First, try to match CSV classes with PDF classes at the same time
+      csvClasses.forEach((csvClass, csvIdx) => {
+        const csvTimeKey = normalizeTimeKey(csvClass.time);
+        const csvSortKey = parseTimeToMinutes(csvClass.time);
+        
+        // Find matching PDF class at the same time with same class name
+        const matchingPdfIdx = pdfClasses.findIndex((pdfClass, pdfIdx) => {
+          if (usedPdfIndices.has(pdfIdx)) return false;
+          const pdfTimeKey = normalizeTimeKey(pdfClass.time);
+          return pdfTimeKey === csvTimeKey && 
+            (pdfClass.className.toLowerCase().includes(csvClass.className.toLowerCase().replace('studio ', '')) ||
+             csvClass.className.toLowerCase().includes(pdfClass.className.toLowerCase().replace('studio ', '')));
+        });
+        
+        if (matchingPdfIdx !== -1) {
+          usedCsvIndices.add(csvIdx);
+          usedPdfIndices.add(matchingPdfIdx);
+          alignedRows.push({
+            timeKey: csvTimeKey,
+            displayTime: csvClass.time,
+            sortKey: csvSortKey,
+            csvClass: csvClass,
+            pdfClass: pdfClasses[matchingPdfIdx]
+          });
+        }
+      });
+      
+      // Add remaining CSV classes (not matched)
+      csvClasses.forEach((csvClass, csvIdx) => {
+        if (usedCsvIndices.has(csvIdx)) return;
+        const csvTimeKey = normalizeTimeKey(csvClass.time);
+        const csvSortKey = parseTimeToMinutes(csvClass.time);
+        
+        // Check if there's any PDF class at this time (even if different class)
+        const pdfAtSameTime = pdfClasses.find((pdfClass, pdfIdx) => {
+          if (usedPdfIndices.has(pdfIdx)) return false;
+          return normalizeTimeKey(pdfClass.time) === csvTimeKey;
+        });
+        
+        if (pdfAtSameTime) {
+          const pdfIdx = pdfClasses.indexOf(pdfAtSameTime);
+          usedPdfIndices.add(pdfIdx);
+          alignedRows.push({
+            timeKey: csvTimeKey,
+            displayTime: csvClass.time,
+            sortKey: csvSortKey,
+            csvClass: csvClass,
+            pdfClass: pdfAtSameTime
+          });
+        } else {
+          alignedRows.push({
+            timeKey: csvTimeKey,
+            displayTime: csvClass.time,
+            sortKey: csvSortKey,
+            csvClass: csvClass,
+            pdfClass: null
+          });
+        }
+      });
+      
+      // Add remaining PDF classes (not matched)
+      pdfClasses.forEach((pdfClass, pdfIdx) => {
+        if (usedPdfIndices.has(pdfIdx)) return;
+        const pdfTimeKey = normalizeTimeKey(pdfClass.time);
+        const pdfSortKey = parseTimeToMinutes(pdfClass.time);
+        
+        alignedRows.push({
+          timeKey: pdfTimeKey,
+          displayTime: pdfClass.time,
+          sortKey: pdfSortKey,
+          csvClass: null,
+          pdfClass: pdfClass
+        });
+      });
+      
+      // Sort all rows by time
+      alignedRows.sort((a, b) => a.sortKey - b.sortKey);
+      
+      return alignedRows;
+    };
+
+    // Helper function to check if a row is a perfect match
+    const isFullMatch = (slot: { csvClass: ClassData | null; pdfClass: PdfClassData | null }) => {
+      if (!slot.csvClass || !slot.pdfClass) return false;
+      
+      // Check time match
+      const csvTimeKey = normalizeTimeKey(slot.csvClass.time);
+      const pdfTimeKey = normalizeTimeKey(slot.pdfClass.time);
+      if (csvTimeKey !== pdfTimeKey) return false;
+      
+      // Check class name match (case insensitive, ignore "Studio " prefix)
+      const csvClassName = slot.csvClass.className.toLowerCase().replace('studio ', '');
+      const pdfClassName = slot.pdfClass.className.toLowerCase().replace('studio ', '');
+      if (!csvClassName.includes(pdfClassName) && !pdfClassName.includes(csvClassName)) return false;
+      
+      // Check trainer match
+      if (slot.csvClass.trainer1 !== slot.pdfClass.trainer) return false;
+      
+      return true;
+    };
+
+    return (
+      <div className="flex flex-col mt-4 flex-1 min-h-0 border rounded-lg overflow-hidden">
+        {/* Single scrollable container for aligned view */}
+        <div 
+          ref={csvScrollRef}
+          className="flex-1 overflow-auto"
+          onScroll={handleCsvScroll}
+        >
+          {allDays.map(day => {
+            const alignedData = buildAlignedDayData(day);
+            const csvCount = alignedData.filter(s => s.csvClass).length;
+            const pdfCount = alignedData.filter(s => s.pdfClass).length;
+            const matchCount = alignedData.filter(s => isFullMatch(s)).length;
+            
+            return (
+              <div key={`aligned-${day}`} className="border-b-2 border-gray-300">
+                {/* Day Header */}
+                <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-red-600 px-4 py-2 font-semibold text-white border-b border-gray-200 z-20 h-10 flex items-center justify-between">
+                  <span>{day}</span>
+                  <span className="text-sm font-normal">
+                    CSV: {csvCount} | PDF: {pdfCount} | ✓ Matched: {matchCount}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+                
+                {/* Table Header */}
+                <div className="sticky top-10 z-10 h-8 flex">
+                  {/* CSV Headers */}
+                  <div className="flex-1 bg-blue-100 grid grid-cols-4 border-r-2 border-gray-400">
+                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Time</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Class</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-blue-700 border-r border-blue-200">Trainer</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-blue-700">Location</div>
+                  </div>
+                  {/* Match indicator column */}
+                  <div className="w-10 bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">✓</div>
+                  {/* PDF Headers */}
+                  <div className="flex-1 bg-red-100 grid grid-cols-4 border-l-2 border-gray-400">
+                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Time</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Class</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-red-700 border-r border-red-200">Trainer</div>
+                    <div className="px-2 flex items-center text-xs font-medium text-red-700">Location</div>
+                  </div>
+                </div>
+                
+                {/* Data Rows */}
+                {alignedData.length > 0 ? (
+                  alignedData.map((slot, idx) => {
+                    const fullMatch = isFullMatch(slot);
+                    const hasMismatch = slot.csvClass && slot.pdfClass && slot.csvClass.trainer1 !== slot.pdfClass.trainer;
+                    const classNameMismatch = slot.csvClass && slot.pdfClass &&
+                      !slot.pdfClass.className.toLowerCase().includes(slot.csvClass.className.toLowerCase().replace('studio ', '')) &&
+                      !slot.csvClass.className.toLowerCase().includes(slot.pdfClass.className.toLowerCase().replace('studio ', ''));
+                    
+                    const rowBg = fullMatch 
+                      ? 'bg-green-50 hover:bg-green-100' 
+                      : (hasMismatch || classNameMismatch) 
+                        ? 'bg-yellow-50 hover:bg-yellow-100'
+                        : 'hover:bg-gray-50';
+                    
+                    return (
+                      <div 
+                        key={`row-${day}-${idx}`} 
+                        className={`flex h-11 border-b border-gray-100 ${rowBg}`}
+                      >
+                        {/* CSV Side */}
+                        <div className={`flex-1 grid grid-cols-4 border-r-2 border-gray-300 ${slot.csvClass ? '' : 'bg-gray-50'}`}>
+                          {slot.csvClass ? (
+                            <>
+                              <div className="px-2 flex items-center text-xs font-mono whitespace-nowrap overflow-hidden border-r border-gray-100">{slot.csvClass.time}</div>
+                              <div className="px-2 flex items-center text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100" title={slot.csvClass.className}>{slot.csvClass.className}</div>
+                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100" title={slot.csvClass.trainer1}>{slot.csvClass.trainer1}</div>
+                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis" title={slot.csvClass.location}>{slot.csvClass.location}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="px-2 flex items-center text-xs font-mono text-gray-400 whitespace-nowrap border-r border-gray-100">{slot.displayTime}</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic">—</div>
+                            </>
+                          )}
+                        </div>
+                        
+                        {/* Match Indicator */}
+                        <div className={`w-10 flex items-center justify-center text-sm ${
+                          fullMatch 
+                            ? 'bg-green-200 text-green-700' 
+                            : (slot.csvClass && slot.pdfClass)
+                              ? 'bg-yellow-200 text-yellow-700'
+                              : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {fullMatch ? '✓' : (slot.csvClass && slot.pdfClass) ? '~' : '○'}
+                        </div>
+                        
+                        {/* PDF Side */}
+                        <div className={`flex-1 grid grid-cols-4 border-l-2 border-gray-300 ${slot.pdfClass ? '' : 'bg-gray-50'}`}>
+                          {slot.pdfClass ? (
+                            <>
+                              <div className="px-2 flex items-center text-xs font-mono whitespace-nowrap overflow-hidden border-r border-gray-100">{slot.pdfClass.time}</div>
+                              <div className={`px-2 flex items-center text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 ${classNameMismatch ? 'text-orange-600' : ''}`} title={slot.pdfClass.className}>
+                                {slot.pdfClass.className}
+                              </div>
+                              <div className={`px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 ${hasMismatch ? 'text-red-600 font-semibold' : ''}`} title={slot.pdfClass.trainer}>
+                                {slot.pdfClass.trainer}
+                              </div>
+                              <div className="px-2 flex items-center text-xs whitespace-nowrap overflow-hidden text-ellipsis" title={slot.pdfClass.location}>{slot.pdfClass.location}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="px-2 flex items-center text-xs font-mono text-gray-400 whitespace-nowrap border-r border-gray-100">{slot.displayTime}</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic border-r border-gray-100">—</div>
+                              <div className="px-2 flex items-center text-xs text-gray-400 italic">—</div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="h-12 flex items-center justify-center text-gray-500 text-sm">No classes for this day</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );

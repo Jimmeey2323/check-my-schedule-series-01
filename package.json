@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "api": "node server.js",
-    "start": "concurrently \"npm run api\" \"npm run dev\""
+    "start": "concurrently \"npm run api\" \"npm run dev\"",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -70,7 +71,7 @@
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
-    "tesseract.js": "^4.1.1",
+    "tesseract.js": "^4.1.4",
     "vaul": "^0.9.3",
     "zod": "^3.23.8"
   },
@@ -91,6 +92,7 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "vitest": "^1.0.0"
   }
 }

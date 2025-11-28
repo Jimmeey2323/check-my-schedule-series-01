@@ -126,16 +126,22 @@ export function TabGroup({ tabs, activeTab, onTabChange, onClearAllData }: TabGr
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Clear All Schedule Data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action will permanently delete all uploaded files and processed schedule data from all tabs. 
-                  This includes:
-                  <ul className="mt-2 ml-4 list-disc text-sm">
-                    <li>CSV schedule data and files</li>
-                    <li>PDF schedule data and files</li>
-                    <li>All comparison results</li>
-                    <li>Saved filters and settings</li>
-                  </ul>
-                  <strong className="text-red-600">This action cannot be undone.</strong>
+                <AlertDialogDescription asChild>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      This action will permanently delete all uploaded files and processed schedule data from all tabs. 
+                      This includes:
+                    </p>
+                    <ul className="mt-2 ml-4 list-disc text-sm text-muted-foreground">
+                      <li>CSV schedule data and files</li>
+                      <li>PDF schedule data and files</li>
+                      <li>All comparison results</li>
+                      <li>Saved filters and settings</li>
+                    </ul>
+                    <p className="mt-3">
+                      <strong className="text-red-600">This action cannot be undone.</strong>
+                    </p>
+                  </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

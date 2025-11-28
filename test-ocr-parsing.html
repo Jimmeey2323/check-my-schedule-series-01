@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCR Parsing Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 5px;
+    }
+    .class-entry {
+      padding: 8px;
+      margin: 5px 0;
+      background: #f8f9fa;
+      border-left: 3px solid #28a745;
+    }
+    .day-section {
+      margin: 15px 0;
+      padding: 10px;
+      background: #e9ecef;
+      border-radius: 4px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>OCR Text Parsing Test</h1>
+  
+  <div class="section">
+    <h2>Raw OCR Text (Sample)</h2>
+    <pre id="rawText"></pre>
+  </div>
+
+  <div class="section">
+    <h2>Parsed Results</h2>
+    <div id="parsedResults"></div>
+  </div>
+
+  <script type="module">
+    const rawOCRText = `KEMPS
+CORNER
+
+November 24th - November 30th 2025
+BEGINNER : BARRE 57, powerCycle
+
+INTERMEDIATE : CARDIO BARRE , MAT 57, CARDIO BARRE PLUS, FIT, BACK BODY BLAZE
+STRENGTH LAB, powerCycle
+
+ADVANCED : HIIT, AMPED UP!
+
+MONDAY TUESDAY
+
+7:15 AM STRENGTH (PULL) - Anisha 7:30 AM powerCycle - Richard
+
+7:30 AM  BARRE 57 - Simonelle  730AM  FT-Pramal
+8:00 AM powerCycle - Richard 8:30 AM AMPED UP - Atulan
+
+8:30 AM MATS7 - Anisha 9:00 AM BARRE 57 - Richard
+
+9:15 AM STRENGTH (PUSH) - Richard 9:00 AM STRENGTH LAB (FULL BODY) - Pranjali
+10:00 AM  BARRE 57 - Simonelle 10:15 AM CARDIO BARRE EXPRESS - Pranjali
+1:30 AM CARDIO BARRE PLUS - Richard 10:30 AM  powerCycle - Richard
+
+5:45 PM MATS57 (EXPRESS) - Pranjali 1:00 AM  MAT 57 - Atulan
+
+6:00 PM powerCycle - Anmol 5:45 PM BARRE 57 - Rohan
+6:00PM  FIT-Awlan 6:00PM  STRENGTH LAB (PULL) - Anisha
+
+6:45 PM BARRE 57 - Pranjali 6:00 PM powerCycle - Anmol
+
+7:15 PM STRENGTH (PULL) - Atulan 7:15 PM powerCycle - Rohan`;
+
+    // Display raw text sample
+    document.getElementById('rawText').textContent = rawOCRText.split('\n').slice(0, 25).join('\n') + '\n...';
+
+    // Simple parsing function (mimics the logic from pdfParser.ts)
+    function parseOCRText(text) {
+      const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const results = {};
+      
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      // Find day headers
+      const dayHeaders = [];
+      lines.forEach((line, idx) => {
+        const foundDays = daysOfWeek.filter(day => new RegExp(`\\\\b${day}\\\\b`, 'i').test(line));
+        if (foundDays.length > 0) {
+          dayHeaders.push({ lineIndex: idx, days: foundDays });
+        }
+      });
+
+      console.log('Day headers found:', dayHeaders);
+
+      // Process sections
+      for (let i = 0; i < dayHeaders.length; i++) {
+        const current = dayHeaders[i];
+        const next = dayHeaders[i + 1];
+        
+        const startIdx = current.lineIndex + 1;
+        const endIdx = next ? next.lineIndex : lines.length;
+        
+        const sectionLines = lines.slice(startIdx, endIdx);
+        const sectionDays = current.days;
+        
+        sectionDays.forEach(day => {
+          if (!results[day]) results[day] = [];
+        });
+
+        // Parse each line for entries
+        sectionLines.forEach(line => {
+          // Skip header lines
+          if (/BEGINNER|INTERMEDIATE|ADVANCED|KEMPS|CORNER|STUDIO|SCHEDULE|November/i.test(line)) {
+            return;
+          }
+
+          // Find all times in the line
+          const timePattern = /(\\d{1,2}[:.]?\\d{0,2}\\s*(?:AM|PM))/gi;
+          const timeMatches = [];
+          let match;
+          while ((match = timePattern.exec(line)) !== null) {
+            timeMatches.push({ time: match[1], index: match.index });
+          }
+
+          // If multiple times found, split the line
+          if (timeMatches.length >= 2) {
+            timeMatches.forEach((tm, idx) => {
+              const nextTm = timeMatches[idx + 1];
+              const startIdx = tm.index;
+              const endIdx = nextTm ? nextTm.index : line.length;
+              const segment = line.substring(startIdx, endIdx).trim();
+
+              // Parse segment for class and trainer
+              const classMatch = segment.match(/(?:\\d{1,2}[:.]?\\d{0,2}\\s*(?:AM|PM))\\s*(.+?)\\s*[-–—]\\s*([A-Za-z]+)/i);
+              if (classMatch) {
+                const className = classMatch[1].trim();
+                const trainer = classMatch[2].trim();
+                const assignedDay = sectionDays[idx] || sectionDays[0];
+                
+                results[assignedDay].push({
+                  time: tm.time,
+                  className: className,
+                  trainer: trainer
+                });
+              }
+            });
+          }
+        });
+      }
+
+      return results;
+    }
+
+    // Parse and display results
+    const parsed = parseOCRText(rawOCRText);
+    const resultsDiv = document.getElementById('parsedResults');
+    
+    Object.entries(parsed).forEach(([day, classes]) => {
+      const dayDiv = document.createElement('div');
+      dayDiv.className = 'day-section';
+      
+      const dayTitle = document.createElement('h3');
+      dayTitle.textContent = `${day} (${classes.length} classes)`;
+      dayDiv.appendChild(dayTitle);
+      
+      classes.forEach(cls => {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'class-entry';
+        entryDiv.innerHTML = `<strong>${cls.time}</strong> - ${cls.className} - <em>${cls.trainer}</em>`;
+        dayDiv.appendChild(entryDiv);
+      });
+      
+      resultsDiv.appendChild(dayDiv);
+    });
+
+    console.log('Parsed results:', parsed);
+  </script>
+</body>
+</html>
