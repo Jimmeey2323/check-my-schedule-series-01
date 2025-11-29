@@ -32,7 +32,7 @@ type MismatchType = 'match' | 'trainer-mismatch' | 'class-mismatch' | 'time-mism
 type QuickFilter = 'all' | 'matches' | 'trainer-mismatch' | 'class-mismatch' | 'time-mismatch' | 'csv-only' | 'pdf-only';
 
 export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
-  const [filters, setFilters] = useState<FilterState>({ day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] });
+  const [filters, setFilters] = useState<FilterState>({ day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] });
   const [flattenedCsvData, setFlattenedCsvData] = useState<ClassData[]>([]);
   const [filteredCsvData, setFilteredCsvData] = useState<ClassData[]>([]);
   const [filteredPdfData, setFilteredPdfData] = useState<PdfClassData[]>([]);
@@ -53,8 +53,8 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
         if (parsed.location && parsed.location.length > 0) {
           setFilters(parsed);
         } else {
-          // Set default to Kwality House and Kemps Corner
-          const defaultFilters = { day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] };
+          // Set default to Kwality House, Kemps Corner
+          const defaultFilters = { day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] };
           setFilters(defaultFilters);
           localStorage.setItem('csvFilters', JSON.stringify(defaultFilters));
         }
@@ -63,7 +63,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
       }
     } else {
       // No saved filters, set default
-      const defaultFilters = { day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] };
+      const defaultFilters = { day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] };
       setFilters(defaultFilters);
       localStorage.setItem('csvFilters', JSON.stringify(defaultFilters));
     }
@@ -72,7 +72,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   // Listen for clear data events and reset state
   useEffect(() => {
     const handleDataCleared = () => {
-      setFilters({ day: [], location: ['Kwality House', 'Kemps Corner'], trainer: [], className: [] });
+      setFilters({ day: [], location: ['Kwality House, Kemps Corner'], trainer: [], className: [] });
       setQuickFilter('all');
     };
 

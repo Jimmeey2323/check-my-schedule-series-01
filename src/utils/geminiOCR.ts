@@ -75,6 +75,14 @@ async function extractScheduleWithGeminiVision(
   location: string,
   pageNum: number
 ): Promise<GeminiExtractionResult> {
+  // Check if API key is available
+  if (!GEMINI_API_KEY) {
+    console.error('❌ GEMINI_API_KEY is not set! Please add VITE_GEMINI_API_KEY to your .env file.');
+    throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
+  }
+  
+  console.log(`🔑 Using Gemini API key: ${GEMINI_API_KEY.substring(0, 10)}...`);
+  
   const prompt = `You are an expert at extracting class schedule data from fitness studio schedule images.
 
 Analyze this image of a fitness class schedule and extract ALL class entries.
@@ -675,6 +683,12 @@ export async function enhanceOCRWithGemini(
   data: PdfClassData[];
   error?: string;
 }> {
+  // Check if API key is available
+  if (!GEMINI_API_KEY) {
+    console.error('❌ GEMINI_API_KEY is not set for OCR enhancement!');
+    return { success: false, data: [], error: 'Gemini API key not configured' };
+  }
+  
   const normalizedLocation = normalizeLocation(location);
   
   const prompt = `You are an expert at parsing fitness class schedule data. 
