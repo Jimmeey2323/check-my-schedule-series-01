@@ -5,7 +5,11 @@
 
 import { PdfClassData } from '@/types/schedule';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAi5Rbe5dPf7cIO64bG8tbiVnoeVTYx-2k';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  console.warn('⚠️ VITE_GEMINI_API_KEY not set. PDF parsing will use fallback methods.');
+}
 
 // Use Gemini 2.0 Flash for vision tasks - it's fast and supports multimodal
 const GEMINI_VISION_MODEL = 'gemini-2.0-flash';
@@ -177,6 +181,17 @@ Extract ALL classes visible in the image. Be thorough.`;
       }
 
     const result = await response.json();
+    
+    // Log token usage
+    const usageMetadata = result.usageMetadata;
+    if (usageMetadata) {
+      console.log(`📊 Page ${pageNum} Token Usage:`);
+      console.log(`   • Prompt tokens: ${usageMetadata.promptTokenCount?.toLocaleString() || 'N/A'}`);
+      console.log(`   • Response tokens: ${usageMetadata.candidatesTokenCount?.toLocaleString() || 'N/A'}`);
+      console.log(`   • Total tokens: ${usageMetadata.totalTokenCount?.toLocaleString() || 'N/A'}`);
+      console.log(`   ℹ️ Free tier: 1,500 requests/day, 1M tokens/minute`);
+    }
+    
     console.log(`Page ${pageNum} Gemini response:`, result);
 
     // Extract the text content from the response
