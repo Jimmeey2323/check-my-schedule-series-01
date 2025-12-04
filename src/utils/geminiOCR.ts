@@ -465,57 +465,114 @@ function normalizeClassName(name: string): string {
 /**
  * Normalize trainer name
  */
+// Helper function to calculate Levenshtein distance for fuzzy matching
+function levenshteinDistance(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= len2; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= len1; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= len2; i++) {
+    for (let j = 1; j <= len1; j++) {
+      if (str2[i - 1] === str1[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[len2][len1];
+}
+
+// List of all valid trainer names
+const allowedTeachers = [
+  'Anisha Shah',
+  'Atulan Purohit',
+  'Janhavi Jain',
+  'Karanvir Bhatia',
+  'Karan Bhatia',
+  'Mrigakshi Jaiswal',
+  'Pranjali Jain',
+  'Reshma Sharma',
+  "Richard D'Costa",
+  'Rohan Dahima',
+  'Upasna Paranjpe',
+  'Saniya Jaiswal',
+  'Vivaran Dhasmana',
+  'Nishanth Raj',
+  'Cauveri Vikrant',
+  'Kabir Varma',
+  'Simonelle De Vitre',
+  'Simran Dutt',
+  'Anmol Sharma',
+  'Bret Saldanha',
+  'Raunak Khemuka',
+  'Kajol Kanchan',
+  'Pushyank Nahar',
+  'Shruti Kulkarni',
+  'Poojitha Bhaskar',
+  'Siddhartha Kusuma',
+  'Chaitanya Nahar',
+  'Veena Narasimhan',
+  'Sovena Fernandes'
+];
+
 function normalizeTrainerName(name: string): string {
   if (!name) return '';
   
-  let normalized = name.trim();
-  
-  // Map of first names to full names
-  const trainerMappings: Record<string, string> = {
-    'anisha': 'Anisha Shah',
-    'atulan': 'Atulan Purohit',
-    'janhavi': 'Janhavi Jain',
-    'karanvir': 'Karanvir Bhatia',
-    'karan': 'Karan Bhatia',
-    'mrigakshi': 'Mrigakshi Jaiswal',
-    'mrigakeni': 'Mrigakshi Jaiswal',
-    'pranjali': 'Pranjali Jain',
-    'pramal': 'Pranjali Jain',
-    'reshma': 'Reshma Sharma',
-    'richard': "Richard D'Costa",
-    'rohan': 'Rohan Dahima',
-    'upasna': 'Upasna Paranjpe',
-    'saniya': 'Saniya Jaiswal',
-    'vivaran': 'Vivaran Dhasmana',
-    'nishanth': 'Nishanth Raj',
-    'nishant': 'Nishanth Raj',
-    'cauveri': 'Cauveri Vikrant',
-    'kabir': 'Kabir Varma',
-    'simonelle': 'Simonelle De Vitre',
-    'simran': 'Simran Dutt',
-    'anmol': 'Anmol Sharma',
-    'bret': 'Bret Saldanha',
-    'raunak': 'Raunak Khemuka',
-    'kajol': 'Kajol Kanchan',
-    'pushyank': 'Pushyank Nahar',
-    'shruti': 'Shruti Kulkarni',
-    'poojitha': 'Poojitha Bhaskar',
-    'siddhartha': 'Siddhartha Kusuma',
-    'chaitanya': 'Chaitanya Nahar',
-    'veena': 'Veena Narasimhan',
-    'sovena': 'Sovena Fernandes'
-  };
-  
-  // Check if we have a mapping for this name (case-insensitive)
-  const lowerName = normalized.toLowerCase();
-  for (const [key, fullName] of Object.entries(trainerMappings)) {
-    if (lowerName === key || lowerName.startsWith(key + ' ')) {
+  const val = name.trim().toLowerCase();
+
+  // Specific common nicknames first
+  if (val === 'mriga') return 'Mrigakshi Jaiswal';
+  if (val === 'nishant') return 'Nishanth Raj';
+  if (val === 'raunaq') return 'Raunak Khemuka';
+  if (val === 'richy') return "Richard D'Costa";
+  if (val === 'sovena' || val === 'sov') return 'Sovena Fernandes';
+  if (val === 'vivarani') return 'Vivaran Dhasmana'; // Common OCR typo
+
+  // Match against the full list of allowed teachers
+  for (const fullName of allowedTeachers) {
+    const lowerCaseName = fullName.toLowerCase();
+    // Check for exact match or if the input is the first name of a full name
+    if (lowerCaseName === val || lowerCaseName.startsWith(val + ' ')) {
       return fullName;
     }
   }
+
+  // Try fuzzy matching for common typos/variations (Levenshtein distance)
+  let closestMatch: string | null = null;
+  let closestDistance = 3; // Allow up to 3 character difference
   
+  for (const fullName of allowedTeachers) {
+    const lowerCaseName = fullName.toLowerCase();
+    const distance = levenshteinDistance(val, lowerCaseName);
+    
+    // If very close match and at least 5 chars long to avoid false positives
+    if (distance < closestDistance && (val.length >= 5 || lowerCaseName.includes(val))) {
+      closestDistance = distance;
+      closestMatch = fullName;
+    }
+  }
+  
+  if (closestMatch) {
+    console.log(`Fuzzy matched trainer "${name}" → "${closestMatch}"`);
+    return closestMatch;
+  }
+
   // If no mapping found, just return the capitalized version
-  return normalized.split(' ')
+  return name.trim().split(' ')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 }
