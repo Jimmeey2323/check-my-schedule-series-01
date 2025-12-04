@@ -27,6 +27,7 @@ const allowedTeachers = [
 const classNameMappings: {[key: string]: string} = {
   // Direct mappings to new "Studio" format
   'hosted class': 'Studio Hosted Class',
+  'hosted': 'Studio Barre 57', // Default Hosted classes to Barre 57
   'fit': 'Studio FIT',
   'back body blaze': 'Studio Back Body Blaze',
   'bbb': 'Studio Back Body Blaze',
@@ -160,7 +161,7 @@ export function isValidClassName(className: string): boolean {
   // Valid class names that should always pass (even if short)
   const validClassNames = [
     'recovery', 'fit', 'hiit', 'barre', 'mat', 'cycle', 'sweat', 'foundations',
-    'studio recovery', 'studio fit', 'studio hiit', 'express'
+    'studio recovery', 'studio fit', 'studio hiit', 'express', 'hosted'
   ];
   
   // If class name contains EXPRESS, it's always valid
@@ -176,7 +177,7 @@ export function isValidClassName(className: string): boolean {
   }
   
   const invalidNames = [
-    'smita parekh', 'anandita', '2', 'hosted', '1', 'taarika', 'sakshi',
+    'smita parekh', 'anandita', '2', '1', 'taarika', 'sakshi',
     'smita', 'parekh', 'anand', 'anandi', 'host', 'cover', 'replacement'
   ];
   
@@ -278,26 +279,41 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
           const dayRow = rows[2];
           const headerRow = rows[3];
           const dataRows = rows.slice(4);
-          
-          // Support two CSV structures:
-          // Structure 1: locationCols = [1, 7, 13, 18, 23, 28, 34]
-          // Structure 2: locationCols = [1, 7, 13, 18, 23, 28, 33]
-          // Auto-detect which structure by checking column availability
-          let locationCols = [1, 7, 13, 18, 23, 28, 34];
-          let dayCols = locationCols;
-          let classCols = [2, 8, 14, 19, 24, 29, 35];
-          let trainer1Cols = [3, 9, 15, 20, 25, 30, 36];
-          let coverCols = [6, 12, 17, 22, 27, 32, 38];
-          
-          // Check if the structure uses column 34 or 33 by examining data row width
           const firstDataRow = dataRows[0] || [];
-          if (firstDataRow.length < 35) {
-            // Structure 2 with column 33 instead of 34
-            locationCols = [1, 7, 13, 18, 23, 28, 33];
-            dayCols = locationCols;
-            classCols = [2, 8, 14, 19, 24, 29, 34];
-            trainer1Cols = [3, 9, 15, 20, 25, 30, 35];
-            coverCols = [6, 12, 17, 22, 27, 32, 37];
+          
+          // Support multiple CSV structures:
+          // Base structure has 6 days (Mon-Sat) with Sunday optional
+          // Column pattern: [Location, Class, Trainer, ..., Cover] repeating for each day
+          // Base columns: [1, 7, 13, 18, 23, 28] for Mon-Sat locations
+          // Sunday: columns [33, 34, 35, ..., 38] if present
+          
+          let locationCols = [1, 7, 13, 18, 23, 28];
+          let dayCols = locationCols;
+          let classCols = [2, 8, 14, 19, 24, 29];
+          let trainer1Cols = [3, 9, 15, 20, 25, 30];
+          let coverCols = [6, 12, 17, 22, 27, 32];
+          
+          // Check if Sunday is present in the day row (always 7 days)
+          const dayRowStr = dayRow.join('|').toLowerCase();
+          const sundayColIndex = dayRow.findIndex(cell => cell?.trim().toLowerCase() === 'sunday');
+          
+          if (sundayColIndex !== -1) {
+            // Sunday found - add it with the correct pattern
+            // Sunday location should be at sundayColIndex
+            // Sunday class at sundayColIndex + 1
+            // Sunday trainer at sundayColIndex + 2
+            // Sunday cover at sundayColIndex + 5
+            console.log(`✅ Found Sunday at column ${sundayColIndex}`);
+            locationCols.push(sundayColIndex);
+            dayCols.push(sundayColIndex);
+            classCols.push(sundayColIndex + 1);
+            trainer1Cols.push(sundayColIndex + 2);
+            coverCols.push(sundayColIndex + 5);
+          }
+          
+          // Ensure we always have exactly 7 days
+          if (locationCols.length < 7) {
+            console.warn(`⚠️ Warning: Only found ${locationCols.length} days in CSV (expected 7)`);
           }
           
           let timeColIndex = headerRow.findIndex(h => h?.trim().toLowerCase() === 'time');
@@ -305,6 +321,14 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
           if (timeColIndex === -1) {
             throw new Error('Time column header not found in row 4. Available headers: ' + headerRow.filter(Boolean).join(', '));
           }
+          
+          console.log('CSV Parser - Detected structure:');
+          console.log('  locationCols:', locationCols);
+          console.log('  classCols:', classCols);
+          console.log('  trainer1Cols:', trainer1Cols);
+          console.log('  coverCols:', coverCols);
+          console.log('  First data row length:', firstDataRow.length);
+          console.log('  Day row:', dayRow);
           
           const classes: ClassData[] = [];
           
@@ -325,10 +349,19 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
               let trainer1 = normalizeTrainerName(trainer1Raw);
               let notes = '';
               
+              // Filter out invalid trainer names like "Yes", "No", "ID:", etc.
+              const invalidTrainerValues = ['yes', 'no', 'id:', 'details', 'cover', 'replacement'];
+              if (invalidTrainerValues.includes(trainer1.toLowerCase())) {
+                trainer1 = '';
+              }
+              
               if (coverRaw) {
                 const coverNorm = normalizeTrainerName(coverRaw);
-                notes = coverNorm ? `Cover: ${coverNorm}` : `Cover noted.`;
-                if(coverNorm) trainer1 = coverNorm; // The cover trainer takes the class
+                // Filter out invalid cover names
+                if (!invalidTrainerValues.includes(coverNorm.toLowerCase())) {
+                  notes = coverNorm ? `Cover: ${coverNorm}` : `Cover noted.`;
+                  if(coverNorm) trainer1 = coverNorm; // The cover trainer takes the class
+                }
               }
               
               const timeRaw = row[timeColIndex]?.trim() || '';
@@ -344,7 +377,7 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
                 time,
                 location,
                 className,
-                trainer1,
+                trainer1: trainer1 || 'TBA', // Use 'TBA' if trainer is empty/invalid
                 cover: coverRaw,
                 notes,
                 uniqueKey,
