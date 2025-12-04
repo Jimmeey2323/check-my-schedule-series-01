@@ -148,7 +148,59 @@ export function normalizeTrainerName(raw: string): string {
     }
   }
 
+  // Try fuzzy matching for common typos/variations (Levenshtein-like)
+  // Find the closest match if the input is very similar but not exact
+  let closestMatch: string | null = null;
+  let closestDistance = 3; // Allow up to 3 character difference
+  
+  for (const name of allowedTeachers) {
+    const lowerCaseName = name.toLowerCase();
+    const distance = levenshteinDistance(val, lowerCaseName);
+    
+    // If very close match and at least 5 chars long to avoid false positives
+    if (distance < closestDistance && (val.length >= 5 || lowerCaseName.includes(val))) {
+      closestDistance = distance;
+      closestMatch = name;
+    }
+  }
+  
+  if (closestMatch) {
+    console.log(`Fuzzy matched trainer "${raw}" → "${closestMatch}"`);
+    return closestMatch;
+  }
+
   return raw.trim(); // Return original trimmed value if no match
+}
+
+// Helper function to calculate Levenshtein distance (for fuzzy matching)
+function levenshteinDistance(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= len2; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= len1; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= len2; i++) {
+    for (let j = 1; j <= len1; j++) {
+      if (str2[i - 1] === str1[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[len2][len1];
 }
 
 
