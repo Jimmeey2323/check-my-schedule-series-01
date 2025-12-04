@@ -601,6 +601,8 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
       });
     });
   };
+
+  return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0">
         {/* Collapsible Filters */}
