@@ -279,11 +279,26 @@ export async function extractScheduleData(csvText: string): Promise<{[day: strin
           const headerRow = rows[3];
           const dataRows = rows.slice(4);
           
-          const locationCols = [1, 7, 13, 18, 23, 28, 34];
-          const dayCols = locationCols;
-          const classCols = [2, 8, 14, 19, 24, 29, 35];
-          const trainer1Cols = [3, 9, 15, 20, 25, 30, 36];
-          const coverCols = [6, 12, 17, 22, 27, 32, 38];
+          // Support two CSV structures:
+          // Structure 1: locationCols = [1, 7, 13, 18, 23, 28, 34]
+          // Structure 2: locationCols = [1, 7, 13, 18, 23, 28, 33]
+          // Auto-detect which structure by checking column availability
+          let locationCols = [1, 7, 13, 18, 23, 28, 34];
+          let dayCols = locationCols;
+          let classCols = [2, 8, 14, 19, 24, 29, 35];
+          let trainer1Cols = [3, 9, 15, 20, 25, 30, 36];
+          let coverCols = [6, 12, 17, 22, 27, 32, 38];
+          
+          // Check if the structure uses column 34 or 33 by examining data row width
+          const firstDataRow = dataRows[0] || [];
+          if (firstDataRow.length < 35) {
+            // Structure 2 with column 33 instead of 34
+            locationCols = [1, 7, 13, 18, 23, 28, 33];
+            dayCols = locationCols;
+            classCols = [2, 8, 14, 19, 24, 29, 34];
+            trainer1Cols = [3, 9, 15, 20, 25, 30, 35];
+            coverCols = [6, 12, 17, 22, 27, 32, 37];
+          }
           
           let timeColIndex = headerRow.findIndex(h => h?.trim().toLowerCase() === 'time');
           
