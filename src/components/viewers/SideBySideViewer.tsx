@@ -532,7 +532,8 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     }
 
     // Build WhatsApp formatted text with emojis and bullet points
-    let whatsappText = `📋 *SCHEDULE MISMATCHES REPORT*\n`;
+    let whatsappText = `Hi, Thank you for sharing the schedule. Here are all the discrepancies found:\n\n`;
+    whatsappText += `📋 *SCHEDULE MISMATCHES REPORT*\n`;
     whatsappText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     whatsappText += `Total Mismatches: *${mismatchedRows.length}*\n\n`;
 
