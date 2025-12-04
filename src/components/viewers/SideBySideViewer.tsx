@@ -39,6 +39,7 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
   
   // Refs for synchronized scrolling
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -518,7 +519,88 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
     });
   };
 
-  return (
+  const copyMismatchesAsWhatsapp = () => {
+    const mismatchedRows = allAlignedData.filter(row => row.matchStatus !== 'match');
+    
+    if (mismatchedRows.length === 0) {
+      toast({
+        title: "No Mismatches",
+        description: "There are no mismatched rows to copy.",
+        variant: "default",
+      });
+      return;
+    }
+
+    // Build WhatsApp formatted text with emojis and bullet points
+    let whatsappText = `📋 *SCHEDULE MISMATCHES REPORT*\n`;
+    whatsappText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    whatsappText += `Total Mismatches: *${mismatchedRows.length}*\n\n`;
+
+    // Group by day
+    const mismatchesByDay: {[key: string]: typeof mismatchedRows} = {};
+    mismatchedRows.forEach(row => {
+      if (!mismatchesByDay[row.day]) mismatchesByDay[row.day] = [];
+      mismatchesByDay[row.day].push(row);
+    });
+
+    Object.entries(mismatchesByDay).forEach(([day, rows]) => {
+      whatsappText += `📅 *${day}*\n`;
+      whatsappText += `─────────────────────────────\n`;
+      
+      rows.forEach((row, idx) => {
+        const statusEmoji = row.matchStatus === 'trainer-mismatch' ? '👤' :
+                           row.matchStatus === 'class-mismatch' ? '🏋️' :
+                           row.matchStatus === 'time-mismatch' ? '⏰' :
+                           row.matchStatus === 'csv-only' ? '📊' :
+                           row.matchStatus === 'pdf-only' ? '📄' : '✓';
+        
+        const statusText = row.matchStatus === 'trainer-mismatch' ? 'Trainer Mismatch' :
+                          row.matchStatus === 'class-mismatch' ? 'Class Mismatch' :
+                          row.matchStatus === 'time-mismatch' ? 'Time Mismatch' :
+                          row.matchStatus === 'csv-only' ? 'Not in PDF' :
+                          row.matchStatus === 'pdf-only' ? 'Not in CSV' : 'Match';
+
+        whatsappText += `\n${idx + 1}. ${statusEmoji} *${statusText}*\n`;
+        
+        if (row.csvClass) {
+          whatsappText += `   📊 *CSV:*\n`;
+          whatsappText += `   • Time: ${row.csvClass.time}\n`;
+          whatsappText += `   • Class: ${row.csvClass.className}\n`;
+          whatsappText += `   • Trainer: ${row.csvClass.trainer1}\n`;
+          whatsappText += `   • Location: ${row.csvClass.location}\n`;
+        }
+        
+        if (row.pdfClass) {
+          whatsappText += `   📄 *PDF:*\n`;
+          whatsappText += `   • Time: ${row.pdfClass.time}\n`;
+          whatsappText += `   • Class: ${row.pdfClass.className}\n`;
+          whatsappText += `   • Trainer: ${row.pdfClass.trainer}\n`;
+          whatsappText += `   • Location: ${row.pdfClass.location}\n`;
+        }
+      });
+      
+      whatsappText += `\n`;
+    });
+
+    whatsappText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    whatsappText += `Generated: ${new Date().toLocaleString()}\n`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(whatsappText).then(() => {
+      setCopiedWhatsapp(true);
+      toast({
+        title: "Copied to Clipboard",
+        description: `${mismatchedRows.length} mismatched rows copied in WhatsApp format.`,
+      });
+      setTimeout(() => setCopiedWhatsapp(false), 2000);
+    }).catch(() => {
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard.",
+        variant: "destructive",
+      });
+    });
+  };
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0">
         {/* Collapsible Filters */}
@@ -617,17 +699,30 @@ export function SideBySideViewer({ csvData, pdfData }: SideBySideViewerProps) {
           </Button>
         </div>
         
-        {/* Summary with Copy Button */}
-        <div className="flex justify-between items-center mt-3 p-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyMismatchesToClipboard}
-            className="gap-2"
-          >
-            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'Copied!' : 'Copy Mismatches'}
-          </Button>
+        {/* Summary with Copy Buttons */}
+        <div className="flex justify-between items-center mt-3 p-2 gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyMismatchesToClipboard}
+              className="gap-2"
+            >
+              {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'Copied!' : 'Copy Mismatches'}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyMismatchesAsWhatsapp}
+              className="gap-2"
+            >
+              {copiedWhatsapp ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              {copiedWhatsapp ? 'Copied!' : 'Copy as Text'}
+            </Button>
+          </div>
+          
           <div className="text-sm text-gray-600">
             📊 CSV: <span className="font-semibold text-blue-600 mx-1">{filteredCsvData.length}</span> classes | 
             📋 PDF: <span className="font-semibold text-red-600 mx-1">{filteredPdfData.length}</span> classes
